@@ -1,0 +1,72 @@
+{% extends "common/base.html" %}
+{% block title %}カート — {{ site_label }}{% endblock %}
+{% block extra_css %}
+<style>
+  .cart-row { display:grid; grid-template-columns: 56px 1fr auto; gap:1rem; align-items:center;
+              border-top:1px solid #eee; padding:1rem 0; }
+  .cart-row:first-of-type { border-top:none; }
+  .thumb-sm { width:56px; height:56px; border-radius:8px; display:flex; align-items:center;
+              justify-content:center; color:#fff; font-weight:700; font-size:1.4rem; }
+  .ci-name { font-weight:600; }
+  .ci-name a { color:#1a1a2e; text-decoration:none; }
+  .ci-unit { font-size:.82rem; color:#777; margin-top:.2rem; }
+  .ci-right { text-align:right; }
+  .ci-total { font-weight:700; color:#1565c0; }
+  .qty-form { display:inline-flex; gap:.4rem; align-items:center; margin-top:.4rem; }
+  .qty-form input[type=number] { width:64px; margin:0; }
+  .rm-form { display:inline; }
+  .rm-form button { background:none; border:none; color:#c62828; cursor:pointer; font-size:.8rem;
+                    padding:0; margin-top:.3rem; }
+  .summary { background:#fafbfc; border:1px solid #e6e8ec; border-radius:10px; padding:1rem 1.2rem; }
+  .line { display:flex; justify-content:space-between; font-size:.95rem; padding:.3rem 0; }
+  .line.total { font-size:1.2rem; font-weight:700; color:#1565c0; border-top:1px solid #e0e0e0;
+                margin-top:.4rem; padding-top:.6rem; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>🛒 ショッピングカート</h1>
+  {% if success %}<div class="alert alert-success">{{ success }}</div>{% endif %}
+
+  {% if not lines %}
+    <p style="color:#777; margin:1.5rem 0;">カートに商品がありません。</p>
+    <a class="btn btn-primary" href="/shop">ショップで商品を見る</a>
+  {% else %}
+    {% for l in lines %}
+    {% set hue = (l.product.id * 47) % 360 %}
+    <div class="cart-row">
+      <div class="thumb-sm" style="background:linear-gradient(135deg, hsl({{ hue }},65%,55%), hsl({{ (hue + 40) % 360 }},65%,42%));">{{ l.product.name[:1]|upper }}</div>
+      <div>
+        <div class="ci-name"><a href="/shop/product/{{ l.product.id }}">{{ l.product.name }}</a></div>
+        <div class="ci-unit">単価 ¥{{ l.product.price|yen }}</div>
+        <form class="qty-form" method="POST" action="/cart/update">
+          {{ csrf_field() }}{{ honeypot_field() }}
+          <input type="hidden" name="product_id" value="{{ l.product.id }}">
+          数量 <input type="number" name="qty" value="{{ l.qty }}" min="1">
+          <button class="btn btn-sm" type="submit">更新</button>
+        </form>
+        <form class="rm-form" method="POST" action="/cart/update">
+          {{ csrf_field() }}{{ honeypot_field() }}
+          <input type="hidden" name="product_id" value="{{ l.product.id }}">
+          <input type="hidden" name="remove" value="1">
+          <button type="submit">削除</button>
+        </form>
+      </div>
+      <div class="ci-right">
+        <div class="ci-total">¥{{ l.line_total|yen }}</div>
+      </div>
+    </div>
+    {% endfor %}
+
+    <div class="summary" style="margin-top:1.5rem;">
+      <div class="line total"><span>小計</span><span>¥{{ subtotal|yen }}</span></div>
+      <p style="font-size:.78rem; color:#999; margin:.4rem 0 0;">送料・クーポン・お支払い方法は次のステップで指定します。</p>
+    </div>
+
+    <div style="display:flex; gap:.8rem; margin-top:1.2rem; flex-wrap:wrap;">
+      <a class="btn" style="background:#eef3fb; color:#1565c0;" href="/shop">買い物を続ける</a>
+      <a class="btn btn-primary" href="/checkout/shipping">レジに進む →</a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

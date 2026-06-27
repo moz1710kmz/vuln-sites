@@ -1,0 +1,45 @@
+{% extends "common/base.html" %}
+{% block title %}{{ site_label }} — ホーム{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>{{ site_label }} へようこそ</h1>
+  {% if user %}
+    <p>こんにちは、<strong>{{ user.username }}</strong> さん。{% if user.role not in ('staff', 'admin') %}ポイント残高: <strong>{{ user.balance|yen }} pt</strong>{% endif %}</p>
+  {% else %}
+    <p><a href="/login">ログイン</a> または <a href="/register">新規登録</a> してください。</p>
+  {% endif %}
+
+  <a href="/shop" class="btn btn-primary" style="margin-top:.5rem;">ショップを見る →</a>
+</div>
+
+{% if featured %}
+<div class="card">
+  <h2>おすすめ商品</h2>
+  <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap:1rem; margin-top:.75rem;">
+    {% for p in featured %}
+    {% set hue = (p.id * 47) % 360 %}
+    <a href="/shop/product/{{ p.id }}" style="text-decoration:none; color:inherit; border:1px solid #eee; border-radius:10px; overflow:hidden; display:flex; flex-direction:column; transition: box-shadow .15s;">
+      <div style="height:110px; display:flex; align-items:center; justify-content:center; font-size:2.5rem; color:#fff; font-weight:700; background:linear-gradient(135deg, hsl({{ hue }},65%,55%), hsl({{ (hue + 40) % 360 }},65%,42%));">
+        {{ p.name[:1]|upper }}
+      </div>
+      <div style="padding:.75rem 1rem;">
+        <div style="font-weight:700; font-size:1rem; margin-bottom:.2rem;">{{ p.name }}</div>
+        <div style="color:#1565c0; font-weight:700;">¥{{ p.price|yen }}</div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>お知らせ</h2>
+  {% for post in posts %}
+  <div style="margin-bottom:1rem; padding-bottom:1rem; border-bottom:1px solid #eee;">
+    <a href="/blog/{{ post.id }}" style="font-weight:600; color:#1565c0;">{{ post.title }}</a>
+    <span style="color:#999; font-size:.8rem; margin-left:.5rem;">by {{ post.username }}</span>
+    <p style="color:#555; font-size:.9rem; margin-top:.3rem;">{{ post.body[:100] }}{% if post.body|length > 100 %}…{% endif %}</p>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

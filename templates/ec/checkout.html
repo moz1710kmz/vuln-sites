@@ -1,0 +1,104 @@
+{% extends "common/base.html" %}
+{% from "common/macros.html" import vuln_hint with context %}
+{% block title %}購入手続き — {{ site_label }}{% endblock %}
+{% block extra_css %}
+<style>
+  .co-grid { display:grid; grid-template-columns: 1.3fr 1fr; gap:1.6rem; }
+  @media (max-width:720px){ .co-grid { grid-template-columns:1fr; } }
+  .summary { background:#fafbfc; border:1px solid #e6e8ec; border-radius:10px; padding:1rem 1.2rem; }
+  .summary .item { display:flex; gap:.8rem; align-items:center; }
+  .thumb-sm { width:56px; height:56px; border-radius:8px; flex:none; display:flex; align-items:center;
+              justify-content:center; color:#fff; font-weight:700; font-size:1.4rem; }
+  .pay { border:1px solid #d8dce1; border-radius:8px; padding:.8rem 1rem; margin-bottom:.7rem; cursor:pointer; display:block; }
+  .pay input { width:auto; margin:0 .5rem 0 0; }
+  .pay .ttl { font-weight:600; }
+  .pay .sub { font-size:.8rem; color:#777; margin-top:.2rem; margin-left:1.5rem; }
+  .line { display:flex; justify-content:space-between; font-size:.9rem; padding:.25rem 0; }
+  .line.total { font-size:1.15rem; font-weight:700; color:#1565c0; border-top:1px solid #e0e0e0; margin-top:.4rem; padding-top:.5rem; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="crumb" style="font-size:.82rem; color:#888; margin-bottom:1rem;">
+    <a href="/shop" style="color:#1565c0; text-decoration:none;">ショップ</a> ／
+    <a href="/shop/product/{{ product.id }}" style="color:#1565c0; text-decoration:none;">{{ product.name }}</a> ／ 購入手続き
+  </div>
+  <h1>購入手続き</h1>
+  {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+  {% set hue = (product.id * 47) % 360 %}
+  <form method="POST" action="/shop/buy">
+    {{ csrf_field() }}{{ honeypot_field() }}
+    <input type="hidden" name="product_id" value="{{ product.id }}">
+    <!-- VULN: price hidden field (BIZ-2) — change to 0 or negative to buy for free -->
+    <input type="hidden" name="price" value="{{ product.price }}">
+
+    <div class="co-grid">
+      <div>
+        <div class="summary" style="margin-bottom:1rem;">
+          <div class="item">
+            <div class="thumb-sm" style="background:linear-gradient(135deg, hsl({{ hue }},65%,55%), hsl({{ (hue + 40) % 360 }},65%,42%));">{{ product.name[:1]|upper }}</div>
+            <div>
+              <div style="font-weight:700;">{{ product.name }}</div>
+              <div style="font-size:.85rem; color:#1565c0; font-weight:700;">¥{{ product.price|yen }}</div>
+            </div>
+          </div>
+        </div>
+
+        <label style="font-weight:600;">お届け先</label>
+        <input type="text" name="ship_name" placeholder="お名前（氏名）" value="{{ user.username }}" required>
+        <input type="text" name="ship_postal" placeholder="郵便番号（例: 100-0001）" required style="max-width:220px;">
+        <input type="text" name="ship_address" placeholder="ご住所（都道府県・市区町村・番地・建物名）" required>
+        <input type="text" name="ship_phone" placeholder="電話番号（例: 03-1234-5678）" required style="max-width:260px;">
+
+        <label>数量</label>
+        <input type="number" name="quantity" value="{{ quantity }}" min="1" style="width:100px;">
+
+        <label>クーポンコード（任意）</label>
+        <input type="text" name="coupon" placeholder="クーポンコード">
+        {% call vuln_hint("BIZ-3 PoC") %}クーポンの利用回数チェックに check-then-act の競合があり、同じコードを
+          並行リクエストで送ると <code>max_uses</code> を超えて適用できます（有効コード例:
+          <code>SAVE10</code> / <code>VIP50</code>）。{% endcall %}
+
+        <label style="margin-top:.4rem;">お支払い方法</label>
+        <label class="pay">
+          <input type="radio" name="payment_method" value="cod" checked>
+          <span class="ttl">代金引換（代引き）</span>
+          <div class="sub">商品お届け時に、配達員へ現金でお支払いいただきます。ポイントは消費しません。</div>
+        </label>
+        <label class="pay">
+          <input type="radio" name="payment_method" value="points">
+          <span class="ttl">ポイント利用（全額）</span>
+          <div class="sub">保有ポイントで全額支払います（1 pt = ¥1）。お支払いに必要: <strong>{{ product.price|yen }} pt</strong> ／ 残高: <strong>{{ user.balance|yen }} pt</strong></div>
+        </label>
+        <div class="pay">
+          <label style="display:block; cursor:pointer;">
+            <input type="radio" name="payment_method" value="combo">
+            <span class="ttl">現金とポイントの併用</span>
+          </label>
+          <div class="sub" style="margin-left:1.5rem;">
+            使うポイント数を指定し、残りは代引き（現金）でお支払いします。<br>
+            利用ポイント:
+            <input type="number" name="points_used" min="0" step="1"
+                   value="{{ ([user.balance, product.price]|min)|int }}"
+                   onfocus="this.closest('.pay').querySelector('input[type=radio]').checked=true"
+                   style="width:120px; display:inline-block; margin:.3rem .3rem 0;"> pt
+            <span style="color:#999;">（残高: {{ user.balance|yen }} pt）</span>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="summary">
+          <div style="font-weight:700; margin-bottom:.5rem;">ご注文内容</div>
+          <div class="line"><span>{{ product.name }}</span><span>¥{{ product.price|yen }}</span></div>
+          <div class="line" style="color:#777;"><span>数量</span><span>× <span id="qty-echo">{{ quantity }}</span></span></div>
+          <div class="line total"><span>合計（目安）</span><span>¥{{ product.price|yen }}〜</span></div>
+          <button class="btn btn-primary" style="width:100%; margin-top:.8rem;">注文を確定する</button>
+          <p style="font-size:.75rem; color:#999; margin-top:.5rem;">クーポン適用後の金額は確定時に計算されます。</p>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}

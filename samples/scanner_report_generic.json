@@ -1,0 +1,19 @@
+[
+  {"type": "SQL Injection", "url": "http://localhost:8081/login", "param": "username", "cwe": 89, "severity": "High"},
+  {"type": "SQL Injection", "url": "http://localhost:8082/blog/search", "param": "q", "cwe": 89, "severity": "High"},
+  {"type": "Cross Site Scripting (Reflected)", "url": "http://localhost:8082/blog/search", "param": "q", "cwe": 79, "severity": "High"},
+  {"type": "Cross Site Scripting (Persistent)", "url": "http://localhost:8082/blog/1/comment", "param": "body", "cwe": 79, "severity": "High"},
+  {"type": "Path Traversal", "url": "http://localhost:8082/shop/manual", "param": "file", "cwe": 22, "severity": "High"},
+  {"type": "Remote OS Command Injection", "url": "http://localhost:8082/admin/image-import", "param": "image_url", "cwe": 78, "severity": "High"},
+  {"type": "Absence of Anti-CSRF Tokens", "url": "http://localhost:8081/change-password", "param": "", "cwe": 352, "severity": "Medium"},
+  {"type": "Absence of Anti-CSRF Tokens", "url": "http://localhost:8081/transfer", "param": "", "cwe": 352, "severity": "Medium"},
+  {"type": "Broken Access Control", "url": "http://localhost:8082/admin", "param": "", "cwe": 285, "severity": "High"},
+  {"type": "JWT accepts alg=none (unsigned token)", "url": "http://localhost:8083/api/me", "param": "Authorization", "cwe": 347, "severity": "High"},
+  {"type": "JWT signed with weak/guessable HMAC secret", "url": "http://localhost:8083/api/me", "param": "Authorization", "cwe": 326, "severity": "High"},
+  {"type": "Sensitive information in JWT payload", "url": "http://localhost:8083/api/login", "param": "", "cwe": 200, "severity": "Medium"},
+  {"type": "JWT missing expiration (no exp claim)", "url": "http://localhost:8083/api/login", "param": "", "cwe": 613, "severity": "Medium"},
+  {"type": "X-Frame-Options Header Not Set", "url": "http://localhost:8082/", "param": "", "cwe": 1021, "severity": "Low"},
+  {"type": "Server Leaks Version Information via Server HTTP Response Header", "url": "http://localhost:8082/", "param": "", "cwe": 200, "severity": "Low"},
+  {"type": "Cookie No HttpOnly Flag", "url": "http://localhost:8081/login", "param": "session", "cwe": 1004, "severity": "Low"},
+  {"type": "Content Security Policy (CSP) Header Not Set", "url": "http://localhost:8082/", "param": "", "cwe": 693, "severity": "Medium"}
+]

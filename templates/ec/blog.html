@@ -1,0 +1,25 @@
+{% extends "common/base.html" %}
+{% block title %}ブログ — {{ site_label }}{% endblock %}
+{% block content %}
+<div class="card">
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <h1>ブログ</h1>
+    {% if user and user.role in ('staff', 'admin') %}<a class="btn btn-primary btn-sm" href="/blog/new">新規投稿</a>{% endif %}
+  </div>
+  <form method="GET" action="/blog/search" style="margin:.75rem 0;">
+    <div style="display:flex; gap:.5rem;">
+      <input type="text" name="q" placeholder="記事を検索…" style="margin-bottom:0; flex:1;">
+      <button class="btn btn-primary">検索</button>
+    </div>
+  </form>
+  {% for post in posts %}
+  <div style="padding: 1rem 0; border-bottom: 1px solid #eee;">
+    <a href="/blog/{{ post.id }}" style="font-size:1.1rem; font-weight:600; color:#1565c0;">{{ post.title }}</a>
+    <div style="font-size:.8rem; color:#999; margin:.2rem 0;">by {{ post.username }}</div>
+    <p style="color:#444; font-size:.9rem;">{{ post.body[:150] }}{% if post.body|length > 150 %}…{% endif %}</p>
+  </div>
+  {% else %}
+  <p style="color:#888;">記事がありません。</p>
+  {% endfor %}
+</div>
+{% endblock %}

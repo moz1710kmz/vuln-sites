@@ -1,0 +1,37 @@
+{% extends "common/base.html" %}
+{% from "common/macros.html" import vuln_hint with context %}
+{% block title %}記事検索 — {{ site_label }}{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>記事検索</h1>
+  <!-- VULN: Reflected XSS (query rendered via Markup) + SQL Injection (UNION) -->
+  <form method="GET" action="/blog/search">
+    <div style="display:flex; gap:.5rem;">
+      <input type="text" name="q" value="{{ query }}" placeholder="記事タイトル・本文…" style="margin-bottom:0; flex:1;">
+      <button class="btn btn-primary">検索</button>
+    </div>
+  </form>
+  {% call vuln_hint("SQLi-2 / XSS-R PoC") %}検索キーワード <code>q</code> は SQL に文字列連結され、結果ページにもそのまま反射されます。
+    <code>/blog/search?q=' UNION SELECT id,username,password FROM users-- -</code> で利用者の平文パスワードを抽出でき（SQLi-2）、
+    <code>/blog/search?q=&lt;script&gt;alert(document.cookie)&lt;/script&gt;</code> で反射型 XSS が成立します（XSS-R）。{% endcall %}
+  {% if query %}
+  <p style="margin-top:1rem; color:#555;">
+    「{{ query }}」の検索結果: {{ results|length }} 件
+  </p>
+  {% endif %}
+  {% if sql_error %}
+  <div class="alert alert-error" style="margin-top:.5rem;"><strong>DB Error:</strong> {{ sql_error }}</div>
+  {% endif %}
+  {% if results %}
+  <table style="margin-top:1rem;">
+    <tr><th>タイトル</th><th>本文抜粋</th></tr>
+    {% for r in results %}
+    <tr>
+      <td><a href="/blog/{{ r.id }}">{{ r.title }}</a></td>
+      <td>{{ r.body[:150] }}{% if r.body and r.body|length > 150 %}…{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+</div>
+{% endblock %}

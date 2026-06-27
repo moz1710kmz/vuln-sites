@@ -1,0 +1,23 @@
+{#
+  脆弱性の「評価用ヒント」を全サイト統一の体裁で表示するマクロ。
+
+  体裁: 💡 + 「<label>（評価用ヒント）:」+ alert-info ボックス
+  - nohint のときは何も出力しない（ヒント非表示）。
+  - 本文は {% call %} のボディに HTML で書ける（リンク・<code> など可）。
+
+  使い方:
+    {% from "common/macros.html" import vuln_hint with context %}
+    {% call vuln_hint("IDOR-1 PoC") %}
+      所有者チェックが無いため、URL の ID を変えるだけで他人の情報を閲覧できます。
+    {% endcall %}
+
+  label には脆弱性 ID + 種別（例 "IDOR-1 PoC"）や、評価補助なら "テストアカウント" 等を渡す。
+  注意: import 時は必ず `with context` を付けること（nohint を参照するため）。
+#}
+{% macro vuln_hint(label) %}
+{%- if not nohint %}
+<div class="alert alert-info vuln-hint" style="margin-top:1rem; font-size:.82rem;">
+  💡 <strong>{{ label }}（評価用ヒント）:</strong> {{ caller() }}
+</div>
+{%- endif %}
+{% endmacro %}

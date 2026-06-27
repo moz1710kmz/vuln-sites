@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}VulnBank Control Panel{% endblock %}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #060b18; --glass: rgba(18, 28, 50, 0.78); --glass-2: rgba(22, 34, 60, 0.55);
+      --border: rgba(120, 180, 230, 0.16); --border-bright: rgba(80, 220, 250, 0.5);
+      --text: #e9f2ff; --muted: #94abce; --accent: #22d3ee; --accent-2: #38bdf8;
+    }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text);
+      min-height: 100vh; position: relative;
+    }
+    /* オーロラ・グラデーション背景 */
+    body::before {
+      content: ""; position: fixed; inset: 0; z-index: -1;
+      background:
+        radial-gradient(900px 600px at 80% -8%, rgba(34,211,238,0.16), transparent 60%),
+        radial-gradient(800px 700px at -5% 100%, rgba(99,102,241,0.18), transparent 60%),
+        linear-gradient(160deg, #060b18, #0a1226 55%, #060b18);
+    }
+
+    /* ===== シェル（サイドバー＋メイン） ===== */
+    .app { display: grid; grid-template-columns: 248px 1fr; min-height: 100vh; }
+    .side {
+      background: rgba(8, 14, 28, 0.7); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      border-right: 1px solid var(--border); padding: 1.4rem 1rem; display: flex; flex-direction: column;
+      position: sticky; top: 0; height: 100vh;
+    }
+    .side .logo { font-size: 1.05rem; font-weight: 800; color: var(--accent);
+      text-shadow: 0 0 16px rgba(34,211,238,.5); padding: .3rem .6rem 1.3rem; letter-spacing: .2px; line-height: 1.4; }
+    .side nav { display: flex; flex-direction: column; gap: .25rem; }
+    .side nav a {
+      display: flex; align-items: center; gap: .7rem; color: var(--muted); text-decoration: none;
+      font-size: .92rem; padding: .62rem .75rem; border-radius: 10px; transition: all .15s ease;
+    }
+    .side nav a .ic { width: 20px; text-align: center; }
+    .side nav a:hover { background: rgba(34,211,238,.08); color: #fff; }
+    .side nav a.active { background: linear-gradient(90deg, rgba(34,211,238,.18), rgba(34,211,238,.04));
+      color: var(--accent); border: 1px solid rgba(34,211,238,.3); }
+    .side .spacer { flex: 1; }
+    .side .who { font-size: .8rem; color: var(--muted); padding: .6rem .75rem; border-top: 1px solid var(--border); }
+
+    .main { padding: 1.8rem 2.2rem; min-width: 0; }
+    .wrap { max-width: 980px; }            /* 子テンプレ（logs/score/scanner/smoke）の本体コンテナ */
+
+    /* 未認証（ログイン）用シェル：サイドバーなしで中央寄せ */
+    .auth-shell { min-height: 100vh; display: grid; place-items: center; padding: 1.5rem; }
+    .auth-shell .wrap { max-width: 400px; width: 100%; }
+
+    /* ===== 見出し ===== */
+    .topline { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; gap: 1rem; flex-wrap: wrap; }
+    .topline h1 { font-size: 1.55rem; font-weight: 800; }
+    .topline .actions { display: flex; gap: .6rem; }
+    h1 { font-size: 1.5rem; margin-bottom: 1rem; font-weight: 800; }
+    h2 { font-size: 1.05rem; margin-bottom: .8rem; color: #fff; font-weight: 700; }
+    h3 { font-size: .98rem; margin-bottom: .8rem; color: #fff; }
+    .section-title { font-size: .8rem; text-transform: uppercase; letter-spacing: .12em; color: var(--accent-2);
+      font-weight: 700; margin: 1.6rem 0 .9rem; }
+    h4 { font-size: .76rem; text-transform: uppercase; letter-spacing: .1em; color: var(--accent-2);
+      font-weight: 700; margin: 1.1rem 0 .6rem; }
+    h4:first-of-type { margin-top: 0; }
+
+    /* ===== カード ===== */
+    .card { background: var(--glass); border: 1px solid var(--border); border-radius: 16px; padding: 1.4rem 1.5rem;
+      box-shadow: 0 14px 40px -18px rgba(0,0,0,.7); margin-bottom: 1.5rem; }
+
+    /* サイト状態タイル */
+    .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+    @media (max-width: 1100px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
+    .tile { background: var(--glass); border: 1px solid var(--border); border-radius: 16px; padding: 1.1rem 1.2rem;
+      box-shadow: 0 14px 40px -18px rgba(0,0,0,.7); position: relative; overflow: hidden; }
+    .tile .nm { font-weight: 700; font-size: 1rem; margin-bottom: .7rem; }
+    .tile .port { color: var(--muted); font-size: .82rem; margin-top: .55rem; }
+    .tile.on { border-color: rgba(34,211,238,.32); }
+    .tile.on::after { content: ""; position: absolute; right: -30px; top: -30px; width: 90px; height: 90px;
+      background: radial-gradient(circle, rgba(34,211,238,.3), transparent 70%); filter: blur(8px); }
+
+    /* メトリクス */
+    .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-top: 1rem; }
+    @media (max-width: 1100px) { .metrics { grid-template-columns: repeat(2, 1fr); } }
+    .metric { background: var(--glass-2); border: 1px solid var(--border); border-radius: 14px; padding: .9rem 1.1rem; }
+    .metric-wide { grid-column: span 2; }
+    @media (max-width: 640px) { .metric-wide { grid-column: span 1; } }
+    .metric .k { font-size: .76rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+    .metric .v { font-size: 1.05rem; font-weight: 700; margin-top: .35rem; display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+
+    /* 起動設定 2カラム */
+    .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 1.3rem; align-items: start; }
+    @media (max-width: 900px) { .cols { grid-template-columns: 1fr; } }
+
+    /* ===== フォーム ===== */
+    label { display: block; font-size: .8rem; margin-bottom: .3rem; color: var(--muted); }
+    input[type=text], input[type=password], input[type=email], input[type=number], textarea, select {
+      width: 100%; padding: .58rem .78rem; border: 1px solid var(--border); border-radius: 9px;
+      background: rgba(4,9,20,.6); color: var(--text); font-size: .92rem; margin-bottom: 1rem; font-family: inherit;
+      transition: border-color .18s, box-shadow .18s;
+    }
+    input:focus, textarea:focus, select:focus { outline: none; border-color: var(--border-bright); box-shadow: 0 0 0 3px rgba(34,211,238,.14); }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; }
+    @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
+    .delivery-settings[hidden] { display: none; }
+
+    .feat { display: flex; align-items: center; gap: .6rem; padding: .55rem .8rem; border: 1px solid var(--border);
+      border-radius: 11px; margin-bottom: .5rem; background: rgba(8,16,32,.4); transition: all .15s; }
+    .feat:hover { border-color: var(--border-bright); background: rgba(34,211,238,.06); }
+    .feat input { width: auto; margin: 0; accent-color: var(--accent); transform: scale(1.1); }
+    .feat span { font-size: .88rem; color: var(--text); }
+
+    /* ===== ボタン ===== */
+    .btn { display: inline-flex; align-items: center; gap: .4rem; padding: .58rem 1.25rem; border-radius: 11px;
+      font-size: .88rem; font-weight: 700; cursor: pointer; border: 1px solid transparent; color: #03141c;
+      text-decoration: none; transition: transform .15s, box-shadow .2s; }
+    .btn:hover { transform: translateY(-1px); }
+    .btn-blue  { background: linear-gradient(135deg, #22d3ee, #38bdf8); box-shadow: 0 8px 22px -8px rgba(34,211,238,.6); }
+    .btn-blue:hover { box-shadow: 0 12px 30px -8px rgba(34,211,238,.85); }
+    .btn-green { background: linear-gradient(135deg, #34d399, #10b981); color: #04201a; box-shadow: 0 8px 22px -8px rgba(52,211,153,.55); }
+    .btn-amber { background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #2a1a02; box-shadow: 0 8px 22px -8px rgba(251,191,36,.5); }
+    .btn-red   { background: linear-gradient(135deg, #fb7185, #ef4444); color: #2a0606; box-shadow: 0 8px 22px -8px rgba(239,68,68,.55); }
+    .btn:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; transform: none; }
+
+    /* ===== ピル ===== */
+    .pill { display: inline-flex; align-items: center; gap: .3rem; padding: 3px 11px; border-radius: 999px;
+      font-size: .76rem; font-weight: 700; border: 1px solid transparent; }
+    .pill-on { background: rgba(34,211,238,.13); color: #7df0ff; border-color: rgba(34,211,238,.4); box-shadow: 0 0 14px rgba(34,211,238,.3); }
+    .pill-on::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #22d3ee; box-shadow: 0 0 8px #22d3ee; }
+    .pill-off { background: rgba(120,140,170,.1); color: var(--muted); border-color: var(--border); }
+
+    /* ===== アラート（ディスミス可能なトースト） ===== */
+    /* フラッシュは画面上中央に固定配置で重ね、下のコンテンツを押し下げない。
+       上部右寄りのボタン群と重ならない位置。stack 自体はクリックを透過し、
+       各トーストだけ操作可能にする。 */
+    .toast-stack { position: fixed; top: 1rem; left: 50%; transform: translateX(-50%); z-index: 1000;
+      display: flex; flex-direction: column; align-items: center; gap: .6rem;
+      width: max-content; max-width: calc(100vw - 2rem); pointer-events: none; }
+    .toast-stack .alert { margin-bottom: 0; pointer-events: auto; white-space: nowrap;
+      box-shadow: 0 8px 24px rgba(0,0,0,.45); }
+    .alert { position: relative; padding: .8rem 2.4rem .8rem 1rem; border-radius: 10px; margin-bottom: 1rem;
+      font-size: .9rem; transition: opacity .25s ease, transform .25s ease; }
+    .alert-ok  { background: rgba(5,46,22,.55); border: 1px solid #16a34a; color: #86efac; }
+    .alert-err { background: rgba(69,10,10,.55); border: 1px solid #dc2626; color: #fca5a5; }
+    .alert.is-leaving { opacity: 0; transform: translateY(-4px); }
+    .alert-close { position: absolute; top: 50%; right: .55rem; transform: translateY(-50%);
+      background: none; border: 0; padding: 0 .25rem; cursor: pointer; color: inherit; opacity: .7;
+      font-size: 1.15rem; line-height: 1; font-family: inherit; }
+    .alert-close:hover { opacity: 1; }
+
+    /* ===== テーブル（攻撃ログ/採点） ===== */
+    table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+    th, td { text-align: left; padding: .55rem .7rem; border-bottom: 1px solid var(--border); }
+    th { color: var(--accent-2); font-weight: 700; text-transform: uppercase; font-size: .72rem; letter-spacing: .05em; }
+    tr:hover td { background: rgba(34,211,238,.04); }
+
+    /* ===== その他 ===== */
+    code { background: rgba(4,9,20,.7); padding: 1px 6px; border-radius: 5px; color: #7df0ff; font-size: .85em;
+      border: 1px solid rgba(34,211,238,.16); }
+    a.link { color: var(--accent); text-decoration: none; }
+    a.link:hover { text-decoration: underline; }
+    .muted { color: var(--muted); font-size: .85rem; }
+    hr { border: none; border-top: 1px solid var(--border); margin: 1.2rem 0; }
+    .status-row { display: flex; align-items: center; gap: .55rem; flex-wrap: wrap; margin-bottom: .6rem; }
+    .status-row .lbl { min-width: 96px; color: var(--muted); font-size: .85rem; }
+  </style>
+</head>
+<body>
+{% set nav_active %}{% block nav_active %}{% endblock %}{% endset %}
+{% block shell %}
+<div class="app">
+  <aside class="side">
+    <div class="logo">🎛️ 脆弱性検出評価<br>コントロールパネル</div>
+    <nav>
+      <a class="{{ 'active' if nav_active|trim == 'dashboard' else '' }}" href="/"><span class="ic">📊</span> ダッシュボード</a>
+      <a class="{{ 'active' if nav_active|trim == 'logs' else '' }}" href="/logs"><span class="ic">📋</span> 攻撃ログ</a>
+      <a class="{{ 'active' if nav_active|trim == 'smoke' else '' }}" href="/smoke"><span class="ic">🔥</span> スモーク</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="who">👤 admin</div>
+    <nav><a href="/logout"><span class="ic">⏏️</span> ログアウト</a></nav>
+  </aside>
+  <main class="main">
+    {% block body %}{% endblock %}
+  </main>
+</div>
+{% endblock %}
+{% block scripts %}{% endblock %}
+<script>
+  /* フラッシュ（.alert）をディスミス可能なトースト化。
+     成功(alert-ok)は自動消去・エラー(alert-err)は×のみ。ホバー中は自動消去を止める。 */
+  (() => {
+    const AUTO_DISMISS_MS = 5000;   // 自動で消えるまで（ホバー中は止まる）
+    const FADE_MS = 250;            // フェードアウト時間（CSS の transition と合わせる）
+
+    const dismiss = (el) => {
+      if (el.classList.contains('is-leaving')) return;
+      el.classList.add('is-leaving');
+      let done = false;
+      const remove = () => { if (!done) { done = true; el.remove(); } };
+      el.addEventListener('transitionend', remove, { once: true });
+      setTimeout(remove, FADE_MS + 50);   // transitionend が来ない場合のフォールバック
+    };
+
+    document.querySelectorAll('.alert').forEach((el) => {
+      const close = document.createElement('button');
+      close.type = 'button';
+      close.className = 'alert-close';
+      close.setAttribute('aria-label', '閉じる');
+      close.textContent = '×';
+      close.addEventListener('click', () => dismiss(el));
+      el.appendChild(close);
+
+      if (el.classList.contains('alert-ok')) {
+        let timer = setTimeout(() => dismiss(el), AUTO_DISMISS_MS);
+        el.addEventListener('mouseenter', () => clearTimeout(timer));
+        el.addEventListener('mouseleave', () => { timer = setTimeout(() => dismiss(el), AUTO_DISMISS_MS); });
+      }
+    });
+  })();
+</script>
+</body>
+</html>

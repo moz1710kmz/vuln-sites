@@ -1,0 +1,8 @@
+{% extends "common/base.html" %}
+{% block title %}Blocked — {{ site_label }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:520px; margin:2rem auto; text-align:center;">
+  <h1 style="color:#c62828;">{{ title or "⛔ リクエストがブロックされました" }}</h1>
+  <p style="color:#555; margin-top:.5rem;">{{ detail or "" }}</p>
+</div>
+{% endblock %}

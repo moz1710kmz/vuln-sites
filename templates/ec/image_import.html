@@ -1,0 +1,33 @@
+{% extends "common/base.html" %}
+{% from "common/macros.html" import vuln_hint with context %}
+{% block title %}商品画像のURL取り込み — {{ site_label }}{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>商品画像のURL取り込み</h1>
+  <p class="muted" style="font-size:.85rem; color:#555; margin-bottom:1rem;">
+    画像のURLを指定すると、サーバが取得して 400×400 のサムネイルを生成します（ImageMagick）。
+  </p>
+  <!-- VULN: Command Injection — image_url を curl|convert にシェル経由で渡している -->
+  <form method="POST">
+    {{ csrf_field() }}{{ honeypot_field() }}
+    <label>画像URL</label>
+    <input type="text" name="image_url"
+           placeholder="https://example.com/item.jpg"
+           value="{{ request.form.image_url or '' }}">
+    <button class="btn btn-primary">取り込み</button>
+  </form>
+  {% if f_waf %}
+  {% call vuln_hint("CMD-1 PoC") %}<code>image_url</code> はシェル経由で <code>curl … | convert …</code> に
+    渡されます。WAF回避例: <code>http://x/a.jpg | id #</code>（末尾の <code>| convert</code> を
+    <code>#</code> で無効化）/ <code>%0a</code> 改行（<code>; id</code> は WAF で弾かれる）。{% endcall %}
+  {% else %}
+  {% call vuln_hint("CMD-1 PoC") %}<code>image_url</code> はシェル経由で <code>curl … {url} | convert …</code>
+    に渡されます。例: <code>http://x/a.jpg | id #</code> / <code>http://x/a.jpg; id #</code>
+    （末尾の <code>| convert</code> を <code>#</code> でコメントアウトすると注入コマンドの出力が見える）。{% endcall %}
+  {% endif %}
+  {% if output %}
+  <h2 style="margin-top:1rem;">取り込みログ</h2>
+  <pre>{{ output }}</pre>
+  {% endif %}
+</div>
+{% endblock %}

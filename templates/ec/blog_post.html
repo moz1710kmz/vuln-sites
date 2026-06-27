@@ -1,0 +1,54 @@
+{% extends "common/base.html" %}
+{% from "common/macros.html" import vuln_hint with context %}
+{% block title %}{{ post.title }} — {{ site_label }}{% endblock %}
+{% block content %}
+<div class="card">
+  <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+    <h1>{{ post.title }}</h1>
+    {% if user and user.role in ('staff', 'admin') %}
+    <div style="white-space:nowrap;">
+      <a class="btn btn-primary btn-sm" href="/blog/{{ post.id }}/edit">編集</a>
+      <form method="POST" action="/blog/{{ post.id }}/delete" style="display:inline;">
+        {{ csrf_field() }}{{ honeypot_field() }}
+        <button class="btn btn-danger btn-sm" onclick="return confirm('削除しますか?')">削除</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+  <div style="font-size:.85rem; color:#999; margin-bottom:1rem;">by {{ post.username }}</div>
+  <!-- VULN: Stored XSS — post.body rendered with |safe -->
+  <div style="line-height:1.7;">{{ post.body | safe }}</div>
+</div>
+
+<div class="card">
+  <h2>コメント ({{ comments|length }})</h2>
+  {% for c in comments %}
+  <div style="padding:.8rem 0; border-bottom:1px solid #eee;">
+    <strong>{{ c.author }}</strong>
+    <span style="font-size:.8rem; color:#999; margin-left:.5rem;">{{ c.created_at }}</span>
+    <!-- VULN: Stored XSS — comment body rendered with |safe -->
+    <p style="margin-top:.4rem;">{{ c.body | safe }}</p>
+  </div>
+  {% else %}
+  <p style="color:#888;">コメントはまだありません。</p>
+  {% endfor %}
+
+  <h2 style="margin-top:1.5rem;">コメントを追加</h2>
+  <!-- VULN: No CSRF token on comment form -->
+  <form method="POST" action="/blog/{{ post.id }}/comment">
+    {{ csrf_field() }}{{ honeypot_field() }}
+    <label>名前</label>
+    <input type="text" name="author" placeholder="匿名">
+    <label>コメント</label>
+    <textarea name="body" placeholder="コメントを入力…"></textarea>
+    <button class="btn btn-primary">送信</button>
+  </form>
+  {% if f_waf %}
+  {% call vuln_hint("XSS-S PoC") %}コメントはサニタイズせず保存・表示されます（Stored XSS）。
+    WAF回避例: <code>&lt;svg onload=alert(1)&gt;</code>。{% endcall %}
+  {% else %}
+  {% call vuln_hint("XSS-S PoC") %}コメントはサニタイズせず保存・表示されます（Stored XSS）。
+    例: <code>&lt;script&gt;alert(1)&lt;/script&gt;</code>。{% endcall %}
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,95 @@
+{% extends "common/base.html" %}
+{% from "common/macros.html" import vuln_hint with context %}
+{% block title %}購入履歴 — {{ site_label }}{% endblock %}
+{% block extra_css %}
+<style>
+  .order { border:1px solid #e6e8ec; border-radius:10px; padding:1rem 1.2rem; margin-bottom:1rem; }
+  .order-head { display:flex; justify-content:space-between; flex-wrap:wrap; gap:.5rem; align-items:baseline; }
+  .order-item { font-size:1.05rem; font-weight:700; }
+  .order-item a { color:#1a1a2e; text-decoration:none; }
+  .order-item a:hover { color:#1565c0; }
+  .order-meta { color:#777; font-size:.82rem; }
+  .order-total { color:#1565c0; font-weight:700; }
+  .review-box { margin-top:.9rem; padding-top:.9rem; border-top:1px dashed #e0e0e0; }
+  .stars { color:#f5a623; letter-spacing:1px; }
+  .rating-select { width:auto; display:inline-block; margin:0 0 .6rem; }
+  .posted { background:#f6fbf7; border:1px solid #d7ecdb; border-radius:8px; padding:.6rem .8rem; font-size:.9rem; }
+  /* ステータスバッジ */
+  .status-badge { display:inline-block; font-size:.76rem; font-weight:700; border-radius:999px; padding:.15em .7em; white-space:nowrap; }
+  .status-badge-processing { background:#fff3cd; color:#856404; border:1px solid #ffc107; }
+  .status-badge-shipped    { background:#cfe2ff; color:#084298; border:1px solid #9ec5fe; }
+  .status-badge-completed  { background:#d1e7dd; color:#0a3622; border:1px solid #a3cfbb; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>購入履歴</h1>
+  {% if not orders %}
+    <p style="color:#666;">まだ購入はありません。<a href="/shop">ショップで商品を見る →</a></p>
+  {% else %}
+    <p style="color:#666; font-size:.88rem;">購入した商品にはレビューを投稿できます。</p>
+    {% if f_waf %}
+    {% call vuln_hint("XSS-S3 PoC") %}投稿したレビュー本文はサニタイズせず保存・表示されます（Stored XSS）。
+      WAF回避例: <code>&lt;svg onload=alert(1)&gt;</code>。{% endcall %}
+    {% else %}
+    {% call vuln_hint("XSS-S3 PoC") %}投稿したレビュー本文はサニタイズせず保存・表示されます（Stored XSS）。
+      例: <code>&lt;img src=x onerror=alert(1)&gt;</code>。{% endcall %}
+    {% endif %}
+    {% for o in orders %}
+    {% set review = reviews_by_order.get(o.id) %}
+    <div class="order">
+      {% set status = status_by_order.get(o.id, '処理中') %}
+      <div class="order-head">
+        <div class="order-item">
+          {% if o.product_id %}<a href="/shop/product/{{ o.product_id }}">{{ o.item }}</a>{% else %}{{ o.item }}{% endif %}
+        </div>
+        <div style="display:flex; align-items:center; gap:.6rem;">
+          {% if status == '処理中' %}
+            <span class="status-badge status-badge-processing">処理中</span>
+          {% elif status == '発送済み' %}
+            <span class="status-badge status-badge-shipped">発送済み</span>
+          {% else %}
+            <span class="status-badge status-badge-completed">完了</span>
+          {% endif %}
+          <div class="order-total">¥{{ o.total|yen }}</div>
+        </div>
+      </div>
+      <div class="order-meta">
+        注文 #{{ o.id }} ・ {{ o.item }} × {{ o.quantity }} ・
+        支払い: {% if o.payment_method == 'cod' %}代引き{% elif o.payment_method == 'combo' %}ポイント＋代引き{% else %}ポイント利用{% endif %} ・ {{ o.created_at }}
+        {% if o.coupon_used %} ・ クーポン {{ o.coupon_used }}{% endif %}
+      </div>
+      {% if o.ship_name or o.ship_address %}
+      <div class="order-meta">お届け先: {{ o.ship_name }} 様 ／ 〒{{ o.ship_postal }} {{ o.ship_address }}</div>
+      {% endif %}
+
+      <div class="review-box">
+        {% if review %}
+          <div class="posted">
+            <strong>投稿済みのレビュー</strong>
+            <span class="stars">{% for _ in range(review.rating) %}★{% endfor %}{% for _ in range(5 - review.rating) %}☆{% endfor %}</span>
+            <!-- VULN: Stored XSS (XSS-S3) — レビュー本文を |safe で未エスケープ描画 -->
+            <div style="margin-top:.3rem; color:#444;">{{ review.body | safe }}</div>
+          </div>
+        {% else %}
+          <form method="POST" action="/orders/{{ o.id }}/review">
+            {{ csrf_field() }}{{ honeypot_field() }}
+            <label>この商品をレビューする</label>
+            <select name="rating" class="rating-select">
+              <option value="5">★★★★★ 大満足</option>
+              <option value="4">★★★★☆ 満足</option>
+              <option value="3">★★★☆☆ ふつう</option>
+              <option value="2">★★☆☆☆ やや不満</option>
+              <option value="1">★☆☆☆☆ 不満</option>
+            </select>
+            <textarea name="body" rows="2" required style="min-height:60px;"
+              placeholder="使ってみた感想を入力…"></textarea>
+            <button class="btn btn-primary btn-sm">レビューを投稿</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  {% endif %}
+</div>
+{% endblock %}

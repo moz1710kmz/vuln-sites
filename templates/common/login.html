@@ -1,0 +1,44 @@
+{% extends "common/base.html" %}
+{% from "common/macros.html" import vuln_hint with context %}
+{% block title %}ログイン — {{ site_label }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:420px; margin:2rem auto;">
+  <h1>ログイン</h1>
+  <!-- VULN: SQL Injection on username/password fields -->
+  {% if error %}
+  <div class="alert alert-error">{{ error }}</div>
+  {% endif %}
+  {% if totp_required %}
+  <!-- [HARD] 2要素認証（TOTP相当）: ワンタイムコード入力 -->
+  <div class="alert alert-info">
+    2段階認証コードを入力してください。
+    {% if not nohint and delivery_dev_inbox %}<br><span style="font-size:.85rem;">（評価用: コードは <a href="/dev/inbox" target="_blank" rel="noopener">/dev/inbox</a>）</span>{% endif %}
+  </div>
+  {% if delivery_error %}
+  <div class="alert alert-error">{{ delivery_error }}</div>
+  {% endif %}
+  <form method="POST" action="/login/2fa">
+    {{ csrf_field() }}{{ honeypot_field() }}
+    <label>2FA コード（6桁）</label>
+    <input type="text" name="otp" inputmode="numeric" autocomplete="one-time-code" placeholder="123456">
+    <button class="btn btn-primary" style="width:100%;">確認</button>
+  </form>
+  {% else %}
+  <form method="POST">
+    {{ csrf_field() }}{{ honeypot_field() }}
+    <label>ユーザー名</label>
+    <input type="text" name="username" placeholder="" autocomplete="off">
+    <label>パスワード</label>
+    <input type="password" name="password">
+    <button class="btn btn-primary" style="width:100%;">ログイン</button>
+  </form>
+  {% endif %}
+  <p style="margin-top:1rem; font-size:.85rem; color:#777;">
+    アカウントをお持ちでない方は <a href="/register">新規登録</a>
+  </p>
+  {% call vuln_hint("テストアカウント") %}<br>
+    <code>admin / admin123</code><br>
+    <code>alice / password123</code>
+  {% endcall %}
+</div>
+{% endblock %}

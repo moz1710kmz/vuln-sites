@@ -1,0 +1,53 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# ---- 仮想環境 ----
+venv/
+.venv/
+env/
+
+# ---- テスト/カバレッジ ----
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# ---- 生成される SQLite DB（起動時に init_db で再生成される） ----
+*.db
+vulnbank.db
+
+# ---- アップロードされたファイル（ディレクトリ構造は .gitkeep で保持） ----
+uploads/*
+!uploads/.gitkeep
+
+# ---- 自己署名証明書（起動時に certmaker が再生成する。秘密鍵はコミットしない） ----
+certs/
+
+# ---- 秘密情報 ----
+.env
+.env.*
+!.env.example
+*.local
+
+# ---- OS / エディタ ----
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*~
+
+# ---- Claude Code（プロジェクト固有の権限設定）----
+.claude/*
+!.claude/skills/
+!.claude/agents/
+!.claude/commands/
+!.claude/hooks/
+!.claude/settings.json
+# ローカル専用設定（許可リスト等）は共有しない
+.claude/settings.local.json
+.superpowers/

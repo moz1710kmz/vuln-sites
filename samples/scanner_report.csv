@@ -1,0 +1,6 @@
+type,url,param,cwe,severity
+SQL Injection,http://localhost:8081/login,username,89,High
+Absence of Anti-CSRF Tokens,http://localhost:8081/change-password,,352,Medium
+Absence of Anti-CSRF Tokens,http://localhost:8081/transfer,,352,Medium
+Session Fixation,http://localhost:8081/login,,384,Medium
+Cookie Without Secure Flag,http://localhost:8081/login,session,614,Low

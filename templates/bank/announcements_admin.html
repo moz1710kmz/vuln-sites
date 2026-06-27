@@ -1,0 +1,58 @@
+{% extends "common/base.html" %}
+{% block title %}お知らせ管理 — {{ site_label }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .ann-form label { display:block; font-size:.85rem; color:#555; margin:.4rem 0 .2rem; }
+  .ann-form input[type=text], .ann-form input[type=date], .ann-form textarea { width:100%; }
+  .ann-form textarea { min-height:4.5rem; }
+  .ann-item { border:1px solid #e0e0e0; border-radius:6px; padding:1rem; margin-bottom:1rem; }
+  .ann-item .meta { color:#888; font-size:.85rem; }
+  .ann-actions { display:flex; gap:.5rem; align-items:flex-end; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <h1>お知らせ管理</h1>
+  <p style="color:#555; font-size:.9rem; margin-bottom:1rem;">
+    担当: <b>{{ user.username }}</b>（{{ user.role }}）。VulnBank トップに掲載するお知らせを追加・編集・削除します。
+  </p>
+
+  <h2 style="font-size:1.05rem;">新規お知らせ</h2>
+  <form class="ann-form" method="post" action="/admin/announcements/new">
+    <label>公開日</label>
+    <input type="date" name="published_at">
+    <label>タイトル</label>
+    <input type="text" name="title" required placeholder="例: システムメンテナンスのお知らせ">
+    <label>本文</label>
+    <textarea name="body" placeholder="お知らせ本文"></textarea>
+    <p style="margin-top:.6rem;"><button class="btn btn-primary" type="submit">追加する</button></p>
+  </form>
+</div>
+
+<div class="card">
+  <h2 style="font-size:1.05rem;">掲載中のお知らせ（{{ announcements|length }} 件）</h2>
+  {% for a in announcements %}
+  <div class="ann-item">
+    <form class="ann-form" method="post" action="/admin/announcements/{{ a.id }}/edit">
+      <label>公開日</label>
+      <input type="date" name="published_at" value="{{ a.published_at }}">
+      <label>タイトル</label>
+      <input type="text" name="title" value="{{ a.title }}" required>
+      <label>本文</label>
+      <textarea name="body">{{ a.body }}</textarea>
+      <div class="ann-actions" style="margin-top:.6rem;">
+        <button class="btn btn-primary" type="submit">更新</button>
+      </div>
+    </form>
+    <form method="post" action="/admin/announcements/{{ a.id }}/delete"
+          onsubmit="return confirm('このお知らせを削除しますか？');" style="margin-top:.5rem;">
+      <button class="btn" type="submit" style="color:#c0392b;">削除</button>
+    </form>
+  </div>
+  {% else %}
+  <p style="color:#777;">お知らせはまだありません。上のフォームから追加してください。</p>
+  {% endfor %}
+</div>
+{% endblock %}

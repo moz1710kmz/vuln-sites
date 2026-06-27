@@ -1,0 +1,84 @@
+{% extends "panel/panel_base.html" %}
+{% block title %}スモーク — Control Panel{% endblock %}
+{% block nav_active %}smoke{% endblock %}
+{% block body %}
+<div class="wrap">
+  <div class="card">
+    <h1>ライブ・スモークテスト</h1>
+    <p class="muted" style="margin-bottom:1rem;">
+      <strong>稼働中の検証アプリを HTTP で外から実際に攻撃</strong>し、いまの設定（サイト/バリア/配送）のまま
+      脆弱性が成立するかを確認します。有効なバリアには適応します（WAF回避・CSRFトークン・2FAコード取得）。
+      これは攻撃を自動送信する点に注意（隔離環境専用）。
+    </p>
+
+    {% if not any_running %}
+    <p class="muted">検証アプリが起動していません。ダッシュボードから起動してください。</p>
+    {% else %}
+    <p style="margin-bottom:1rem;">
+      有効バリア:
+      {% if features %}{% for f in features %}<span class="pill pill-on">{{ f }}</span> {% endfor %}{% else %}<span class="pill pill-off">なし</span>{% endif %}
+      &nbsp;/&nbsp;配送: <code>{{ delivery }}</code>
+    </p>
+
+    {# 実行は明示的な POST。ナビ遷移（GET）では攻撃を送らない。
+       押下後は「実行中…」に変えて二重送信を防ぎ、固まったように見えないようにする。 #}
+    <form id="smoke-form" method="post" action="/smoke" style="margin-bottom:1.2rem;">
+      <button type="submit" id="smoke-run" class="btn btn-red">🔥 スモークを実行（攻撃を送信）</button>
+      <span class="muted" style="margin-left:.6rem;">
+        {% if ran %}前回の実行結果を表示中。再実行すると改めて攻撃を送信します。
+        {% else %}クリックすると稼働中サイトへ実際に攻撃を送信します（完了まで数秒かかります）。{% endif %}
+      </span>
+    </form>
+
+    {% if not ran %}
+    <p class="muted">上の「実行」を押すまで攻撃は送信されません。</p>
+    {% else %}
+    {% set labels = {'exploited': '成立', 'blocked': '阻止', 'skipped': 'スキップ', 'fail': '不発'} %}
+    {% for rep in reports %}
+    <h2 style="margin-top:1rem;">{{ rep.label }} <span class="muted" style="font-size:.8rem;">{{ rep.base_url }}</span></h2>
+    <div style="font-size:1.2rem; font-weight:700; margin:.3rem 0;
+                color:{{ '#16a34a' if rep.exploited == rep.applicable else '#d97706' }};">
+      成立 {{ rep.exploited }} / {{ rep.applicable }}
+    </div>
+    <table style="width:100%; border-collapse:collapse; font-size:.88rem; margin-bottom:1rem;">
+      <tr style="text-align:left; border-bottom:1px solid #334155;">
+        <th style="padding:.4rem;">ID</th><th>種別</th><th>結果</th><th>詳細</th>
+      </tr>
+      {% for r in rep.results %}
+      <tr style="border-bottom:1px solid #1e293b;">
+        <td style="padding:.4rem; white-space:nowrap;"><code>{{ r.id }}</code></td>
+        <td>{{ r.type }}</td>
+        <td style="white-space:nowrap;">
+          {% if r.status == 'exploited' %}<span class="pill pill-on">成立</span>
+          {% elif r.status == 'fail' %}<span class="pill" style="background:#7f1d1d; color:#fca5a5;">不発</span>
+          {% else %}<span class="pill pill-off">{{ labels[r.status] }}</span>{% endif %}
+        </td>
+        <td style="color:#cbd5e1;">{{ r.detail }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% endfor %}
+
+    <p class="muted">
+      ※ <strong>不発</strong>はターゲット異常（脆弱性が壊れている）のサイン。<strong>阻止/スキップ</strong>は有効バリアや配送設定によるもので、想定内です。
+    </p>
+    {% endif %}{# ran #}
+    {% endif %}{# any_running #}
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  /* 「実行」押下後はボタンを「実行中…」に変えて二重送信を防ぎ、
+     固まったように見えないようにする（実攻撃の完了まで数秒かかるため）。 */
+  (() => {
+    const form = document.getElementById('smoke-form');
+    const btn = document.getElementById('smoke-run');
+    if (!form || !btn) return;
+    form.addEventListener('submit', () => {
+      btn.disabled = true;
+      btn.textContent = '⏳ 実行中…（攻撃を送信しています）';
+    });
+  })();
+</script>
+{% endblock %}

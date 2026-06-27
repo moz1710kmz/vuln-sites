@@ -1,0 +1,44 @@
+{% extends "common/base.html" %}
+{% block title %}Dev Inbox — {{ site_label }}{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>📨 Dev Inbox</h1>
+  <div class="alert alert-info" style="font-size:.85rem;">
+    実メール/SMSサーバの代わり（評価用）。保留中の認証リンクと OTP コードを表示します。
+    自動スキャナ/テストはここからコードを取得して多段フローを完走できます。
+  </div>
+
+  <h2>メール認証リンク</h2>
+  {% if pending %}
+  <table>
+    <tr><th>ユーザー名</th><th>メール</th><th>認証リンク</th></tr>
+    {% for p in pending %}
+    <tr>
+      <td>{{ p.username }}</td>
+      <td>{{ p.email }}</td>
+      <td><a href="/verify?token={{ p.verify_token }}">/verify?token={{ p.verify_token }}</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p style="color:#888;">保留中の認証メールはありません。</p>
+  {% endif %}
+
+  <h2 style="margin-top:1.5rem;">OTP コード（SMS）</h2>
+  {% if otps %}
+  <table>
+    <tr><th>ユーザー名</th><th>用途</th><th>コード</th><th>発行時刻</th></tr>
+    {% for o in otps %}
+    <tr>
+      <td>{{ o.username }}</td>
+      <td>{{ o.purpose }}</td>
+      <td><code>{{ o.code }}</code></td>
+      <td>{{ o.created_at }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p style="color:#888;">保留中の OTP はありません。</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "common/base.html" %}
+{% block title %}商品マニュアル — VulnEC{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>商品マニュアル</h1>
+  {% if not filename %}
+  <p style="color:#666;">
+    取扱説明書（マニュアル）は、各商品ページの「取扱説明書をダウンロード」リンクからご利用いただけます。
+  </p>
+  <p><a href="/shop">← ショップへ戻る</a></p>
+  {% endif %}
+
+  {# VULN: Path Traversal — file パラメータは /shop/manual ルートで未サニタイズ（PATH-1・意図的） #}
+  {% if error %}
+  <div class="alert alert-error" style="margin-top:1rem;">{{ error }}</div>
+  {% endif %}
+  {% if content is not none %}
+  <h2 style="margin-top:.5rem;">{{ filename }}</h2>
+  <pre>{{ content }}</pre>
+  <p style="margin-top:1rem;"><a href="/shop">← ショップへ戻る</a></p>
+  {% endif %}
+</div>
+{% endblock %}

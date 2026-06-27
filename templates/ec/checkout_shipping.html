@@ -1,0 +1,130 @@
+{% extends "common/base.html" %}
+{% block title %}お届け先の入力 — {{ site_label }}{% endblock %}
+{% block extra_css %}
+<style>
+  .steps { list-style:none; display:flex; gap:.4rem; padding:0; margin:0 0 1.5rem; font-size:.82rem; flex-wrap:wrap; }
+  .steps li { flex:1; min-width:90px; text-align:center; padding:.5rem .3rem; border-radius:6px;
+              background:#f0f2f5; color:#999; }
+  .steps li.done { background:#e3f0e6; color:#1b8a3a; }
+  .steps li.current { background:#1565c0; color:#fff; font-weight:700; }
+  .co-grid { display:grid; grid-template-columns: 1.4fr 1fr; gap:1.6rem; }
+  @media (max-width:720px){ .co-grid { grid-template-columns:1fr; } }
+  .summary { background:#fafbfc; border:1px solid #e6e8ec; border-radius:10px; padding:1rem 1.2rem; }
+  .line { display:flex; justify-content:space-between; font-size:.9rem; padding:.25rem 0; }
+  .line.total { font-size:1.1rem; font-weight:700; color:#1565c0; border-top:1px solid #e0e0e0;
+                margin-top:.4rem; padding-top:.5rem; }
+  .zip-row { display:flex; gap:.5rem; align-items:flex-start; }
+  .zip-row input { max-width:200px; }
+  .zip-msg { font-size:.8rem; margin:.1rem 0 .9rem; min-height:1em; }
+  .zip-msg.err { color:#c62828; }
+  .zip-msg.ok { color:#1b8a3a; }
+  label.fld { font-weight:600; display:block; margin-top:.4rem; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="card">
+  <ol class="steps">
+    <li class="done">✓ カート</li>
+    <li class="current">1. お届け先</li>
+    <li>2. お支払い</li>
+    <li>3. ご確認</li>
+  </ol>
+  <h1>お届け先の入力</h1>
+
+  <form method="POST" action="/checkout/shipping">
+    {{ csrf_field() }}{{ honeypot_field() }}
+    <div class="co-grid">
+      <div>
+        <label class="fld">お名前（氏名）</label>
+        <input type="text" name="ship_name" placeholder="山田 太郎"
+               value="{{ saved.ship_name or user.username }}" required>
+
+        <label class="fld">郵便番号</label>
+        <div class="zip-row">
+          <input type="text" id="ship_postal" name="ship_postal" placeholder="100-0001"
+                 value="{{ saved.ship_postal or '' }}" autocomplete="postal-code">
+          <button type="button" class="btn" id="zipBtn"
+                  style="background:#eef3fb; color:#1565c0; white-space:nowrap;">住所検索</button>
+        </div>
+        <div class="zip-msg" id="zipMsg"></div>
+
+        <label class="fld">都道府県・市区町村（住所検索で自動入力）</label>
+        <input type="text" id="ship_region" name="ship_region" placeholder="例: 東京都千代田区千代田"
+               value="{{ saved.ship_region or '' }}" required>
+
+        <label class="fld">番地・建物名・部屋番号</label>
+        <input type="text" id="ship_rest" name="ship_rest" placeholder="例: 1-2-3 サンプルマンション101"
+               value="{{ saved.ship_rest or '' }}" required>
+
+        <label class="fld">電話番号</label>
+        <input type="text" name="ship_phone" placeholder="03-1234-5678"
+               value="{{ saved.ship_phone or '' }}" style="max-width:260px;" required>
+
+        <label class="fld" style="margin-top:1rem;">配送方法</label>
+        <div style="margin-bottom:.9rem;">
+          {% for key, (label, fee) in shipping_methods.items() %}
+          <label style="display:flex; align-items:center; gap:.5rem; margin-bottom:.3rem; font-weight:normal; cursor:pointer;">
+            <input type="radio" name="ship_method" value="{{ key }}"
+                   {% if (saved.ship_method or 'standard') == key %}checked{% endif %}>
+            {{ label }}{% if fee %} （+¥{{ fee|yen }}）{% else %} （送料無料）{% endif %}
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div>
+        <div class="summary">
+          <div style="font-weight:700; margin-bottom:.5rem;">ご注文内容</div>
+          {% for l in lines %}
+          <div class="line"><span>{{ l.product.name }} × {{ l.qty }}</span><span>¥{{ l.line_total|yen }}</span></div>
+          {% endfor %}
+          <div class="line total"><span>小計</span><span>¥{{ subtotal|yen }}</span></div>
+          <button class="btn btn-primary" type="submit" style="width:100%; margin-top:.8rem;">お支払いへ進む →</button>
+          <p style="text-align:center; margin-top:.6rem;"><a href="/cart" style="font-size:.82rem; color:#1565c0;">← カートに戻る</a></p>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+
+<script>
+  // 「住所検索」: 郵便番号を *外部の住所検索 API（別コンテナ・ポート 8090）* にブラウザから
+  // 直接問い合わせ、都道府県・市区町村を途中まで自動入力する。番地・建物は利用者が手入力。
+  // スキームはページに追従（location.protocol）。別オリジンのため、:8090 の自己署名証明書を
+  // ブラウザが信頼している必要がある（certs/vuln.crt を OS に登録 or 同ホストの :8090 を許可）。
+  (function () {
+    var ZIP_ORIGIN = location.protocol + '//' + location.hostname + ':8090';
+    var btn = document.getElementById('zipBtn');
+    var msg = document.getElementById('zipMsg');
+    function setMsg(html, cls) { msg.innerHTML = html; msg.className = 'zip-msg ' + (cls || ''); }
+    btn.addEventListener('click', function () {
+      var raw = document.getElementById('ship_postal').value || '';
+      var code = raw.replace(/[^0-9]/g, '');
+      if (code.length < 7) { setMsg('郵便番号は7桁で入力してください。', 'err'); return; }
+      setMsg('検索中…', '');
+      fetch(ZIP_ORIGIN + '/api/zip?code=' + encodeURIComponent(code))
+        .then(function (r) {
+          if (r.status === 404) return null;          // 該当住所なし
+          if (!r.ok) throw new Error('http ' + r.status);
+          return r.json();
+        })
+        .then(function (data) {
+          if (!data) {
+            setMsg('この郵便番号の住所が見つかりませんでした。番地からご入力ください。', 'err');
+            return;
+          }
+          document.getElementById('ship_region').value = data.address || (data.pref + data.city + data.town);
+          setMsg('住所を入力しました。番地・建物名を続けてご入力ください。', 'ok');
+          document.getElementById('ship_rest').focus();
+        })
+        .catch(function () {
+          // ネットワーク/証明書エラー等。別オリジン(:8090)の証明書未信頼が典型。
+          setMsg('住所の取得に失敗しました。手入力も可能です。' +
+                 '（住所検索を使うには ' +
+                 '<a href="' + ZIP_ORIGIN + '/healthz" target="_blank" rel="noopener">' + ZIP_ORIGIN + '</a>' +
+                 ' の証明書を信頼してください）', 'err');
+        });
+    });
+  })();
+</script>
+{% endblock %}

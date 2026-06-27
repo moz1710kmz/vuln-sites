@@ -1,0 +1,163 @@
+{% extends "common/base.html" %}
+{% block title %}VulnBank — 口座ダッシュボード{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>口座ダッシュボード</h1>
+  {% if user %}
+    <p>こんにちは、<strong>{{ user.username }}</strong> さん。{% if user.role != 'user' %}（{{ user.role }}）{% endif %}</p>
+    {% if user.role == 'user' %}
+    <p style="margin-top:.6rem;">普通預金残高: <strong>¥{{ user.balance|yen }}</strong></p>
+    {% endif %}
+    <p style="margin-top:1rem;">
+      {% if user.role == 'user' %}
+      <a class="btn btn-primary" href="/transfer">振込</a>
+      {% endif %}
+      {% if user.role in ('staff', 'admin') %}
+      <a class="btn btn-primary" href="/admin/announcements">お知らせ管理</a>
+      {% endif %}
+      {% if user.role == 'user' %}
+      <a class="btn" href="/profile/{{ user.id }}">口座情報・ログイン設定</a>
+      {% endif %}
+    </p>
+  {% else %}
+    <p><a href="/login">ログイン</a> または <a href="/register">口座開設</a> してください。</p>
+  {% endif %}
+</div>
+
+{% if user and user.role == 'user' %}
+{# ---- 案1: 口座サマリーカード（利用者のみ。staff/admin は口座を持たない） ---- #}
+{% set branch_names = ["東京中央", "大阪南", "横浜みなと", "名古屋栄", "福岡天神", "札幌大通", "仙台青葉", "広島本通"] %}
+{% set branch_index = user.id % branch_names|length %}
+{% set branch_name = branch_names[branch_index] %}
+{% if user.role == "admin" %}
+  {% set account_type = "管理者口座" %}
+{% else %}
+  {% set account_type = "普通預金（一般）" %}
+{% endif %}
+{% set account_number = "%08d"|format(user.id) %}
+<div class="card">
+  <h2>口座サマリー</h2>
+  <table style="width:100%;border-collapse:collapse;">
+    <tr>
+      <th style="text-align:left;padding:.4rem .6rem;width:140px;color:#555;">口座番号</th>
+      <td style="padding:.4rem .6rem;font-family:monospace;letter-spacing:.1em;">{{ account_number }}</td>
+    </tr>
+    <tr style="background:#f9f9f9;">
+      <th style="text-align:left;padding:.4rem .6rem;color:#555;">支店名</th>
+      <td style="padding:.4rem .6rem;">{{ branch_name }}支店</td>
+    </tr>
+    <tr>
+      <th style="text-align:left;padding:.4rem .6rem;color:#555;">口座種別</th>
+      <td style="padding:.4rem .6rem;">{{ account_type }}</td>
+    </tr>
+    <tr style="background:#f9f9f9;">
+      <th style="text-align:left;padding:.4rem .6rem;color:#555;">最終ログイン</th>
+      <td style="padding:.4rem .6rem;">{{ now }}</td>
+    </tr>
+  </table>
+</div>
+
+{# ---- 案4: 残高推移スパークライン（インライン SVG・外部JS/CDN 不使用） ---- #}
+{% if balance_series %}
+<div class="card">
+  <h2>残高推移</h2>
+  {% set ns = namespace(min_v=balance_series[0], max_v=balance_series[0]) %}
+  {% for v in balance_series %}
+    {% if v < ns.min_v %}{% set ns.min_v = v %}{% endif %}
+    {% if v > ns.max_v %}{% set ns.max_v = v %}{% endif %}
+  {% endfor %}
+  {% set svgw = 480 %}
+  {% set svgh = 80 %}
+  {% set pad = 10 %}
+  {% set n = balance_series|length %}
+  {# 最大=最小のフラットライン対応: range を 1 にする #}
+  {% set vrange = ns.max_v - ns.min_v if ns.max_v != ns.min_v else 1 %}
+  <svg width="100%" viewBox="0 0 {{ svgw }} {{ svgh }}"
+       style="display:block;overflow:visible;max-width:{{ svgw }}px;">
+    <defs>
+      <linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#3498db" stop-opacity="0.18"/>
+        <stop offset="100%" stop-color="#3498db" stop-opacity="0.01"/>
+      </linearGradient>
+    </defs>
+    {# 折れ線の点列を計算。n=1 のとき x は pad に固定（xdiv=1 で割り算ゼロ除算回避） #}
+    {% set xdiv = n - 1 if n > 1 else 1 %}
+    {% set pts = namespace(line="", area="") %}
+    {% for i in range(n) %}
+      {% set x = pad + (svgw - pad*2) * i / xdiv %}
+      {% set y = pad + (svgh - pad*2) * (1 - (balance_series[i] - ns.min_v) / vrange) %}
+      {% if loop.first %}
+        {% set pts.line = x|string + "," + y|string %}
+        {% set pts.area = x|string + "," + svgh|string + " " + x|string + "," + y|string %}
+      {% else %}
+        {% set pts.line = pts.line + " " + x|string + "," + y|string %}
+        {% set pts.area = pts.area + " " + x|string + "," + y|string %}
+      {% endif %}
+      {% if loop.last %}
+        {% set pts.area = pts.area + " " + x|string + "," + svgh|string %}
+      {% endif %}
+    {% endfor %}
+    <polygon points="{{ pts.area }}" fill="url(#sparkFill)"/>
+    <polyline points="{{ pts.line }}"
+              fill="none" stroke="#3498db" stroke-width="2" stroke-linejoin="round"/>
+    {# 最新残高を末端にラベル表示 #}
+    {% set last_x = pad + (svgw - pad*2) * (n-1) / xdiv %}
+    {% set last_y = pad + (svgh - pad*2) * (1 - (balance_series[-1] - ns.min_v) / vrange) %}
+    <circle cx="{{ last_x }}" cy="{{ last_y }}" r="3" fill="#3498db"/>
+  </svg>
+  <p style="font-size:.82rem;color:#888;margin:.3rem 0 0;text-align:right;">
+    最高: ¥{{ ns.max_v|yen }} &nbsp;／&nbsp; 最低: ¥{{ ns.min_v|yen }}
+    &nbsp;（直近 {{ n }} 件の振込後残高）
+  </p>
+</div>
+{% endif %}
+
+{# ---- 案2: 振込履歴テーブル ---- #}
+<div class="card">
+  <h2>振込履歴</h2>
+  {% if logs %}
+  <table style="width:100%;border-collapse:collapse;font-size:.95rem;">
+    <thead>
+      <tr style="background:#f0f4f8;">
+        <th style="text-align:left;padding:.4rem .6rem;">日時</th>
+        <th style="text-align:left;padding:.4rem .6rem;">相手先</th>
+        <th style="text-align:center;padding:.4rem .6rem;">種別</th>
+        <th style="text-align:right;padding:.4rem .6rem;">金額</th>
+        <th style="text-align:right;padding:.4rem .6rem;">振込後残高</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for log in logs %}
+      <tr style="border-top:1px solid #e0e0e0;">
+        <td style="padding:.4rem .6rem;white-space:nowrap;">{{ log.created_at }}</td>
+        <td style="padding:.4rem .6rem;">{{ log.counterparty }}</td>
+        <td style="text-align:center;padding:.4rem .6rem;">
+          {% if log.direction == "out" %}
+            <span style="color:#c0392b;">出金</span>
+          {% else %}
+            <span style="color:#27ae60;">入金</span>
+          {% endif %}
+        </td>
+        <td style="text-align:right;padding:.4rem .6rem;">
+          {% if log.direction == "out" %}
+            <span style="color:#c0392b;">-¥{{ log.amount|yen }}</span>
+          {% else %}
+            <span style="color:#27ae60;">+¥{{ log.amount|yen }}</span>
+          {% endif %}
+        </td>
+        <td style="text-align:right;padding:.4rem .6rem;">¥{{ log.balance_after|yen }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    {# 案8: 空状態コピーを本物の銀行らしい文言に改善 #}
+    <div style="text-align:center;padding:1.5rem 0;color:#777;">
+      <p style="margin:0 0 .4rem;font-size:.95rem;">現在、振込・入金の履歴はございません。</p>
+      <p style="margin:0;font-size:.85rem;">振込を行うと、こちらに取引明細が表示されます。</p>
+    </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}

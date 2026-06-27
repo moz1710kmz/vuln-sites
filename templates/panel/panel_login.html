@@ -1,0 +1,22 @@
+{% extends "panel/panel_base.html" %}
+{% block title %}ログイン — Control Panel{% endblock %}
+{% block shell %}
+<div class="auth-shell">
+  <div class="wrap">
+    <div class="card">
+      <h1 style="font-size:1.35rem; line-height:1.4; word-break:keep-all; display:flex; gap:.4rem; align-items:flex-start;">
+        <span>🎛️</span>
+        <span>脆弱性検出評価<br>コントロールパネル</span>
+      </h1>
+      {% if error %}<div class="alert alert-err">{{ error }}</div>{% endif %}
+      <form method="POST">
+        <label>ユーザー名</label>
+        <input type="text" name="username" autocomplete="off" autofocus>
+        <label>パスワード</label>
+        <input type="password" name="password">
+        <button class="btn btn-blue" style="width:100%; justify-content:center;">ログイン</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

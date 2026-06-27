@@ -1,0 +1,51 @@
+{% extends "common/base.html" %}
+{% block title %}マイページ — {{ site_label }}{% endblock %}
+{% block extra_css %}
+<style>
+  .mypage-section { margin-bottom: 1.5rem; }
+  .mypage-row { display: flex; align-items: baseline; gap: 1rem; padding: .5rem 0;
+                border-bottom: 1px solid #f0f0f0; font-size: .95rem; }
+  .mypage-label { color: #777; min-width: 130px; font-size: .85rem; }
+  .mypage-value { font-weight: 600; color: #1a1a2e; }
+  .rank-badge { display: inline-block; padding: 2px 10px; border-radius: 12px;
+                font-size: .82rem; font-weight: 700; }
+  .rank-一般  { background: #eeeeee; color: #555; }
+  .rank-シルバー { background: #e8eaf6; color: #283593; }
+  .rank-ゴールド  { background: #fff8e1; color: #e65100; }
+  .nav-links { display: flex; gap: 1rem; margin-top: 1.2rem; flex-wrap: wrap; }
+  .nav-links a { color: #1565c0; text-decoration: none; font-size: .9rem; }
+  .nav-links a:hover { text-decoration: underline; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>マイページ</h1>
+
+  <div class="mypage-section">
+    <div class="mypage-row">
+      <span class="mypage-label">ユーザー名</span>
+      <span class="mypage-value">{{ user.username }}</span>
+    </div>
+    <div class="mypage-row">
+      <span class="mypage-label">メールアドレス</span>
+      <span class="mypage-value">{{ user.email or "（未設定）" }}</span>
+    </div>
+    <div class="mypage-row">
+      <span class="mypage-label">ポイント残高</span>
+      <span class="mypage-value">{{ user.balance | yen }} pt</span>
+    </div>
+    <div class="mypage-row">
+      <span class="mypage-label">会員ランク</span>
+      <span class="mypage-value">
+        <span class="rank-badge rank-{{ rank }}">{{ rank }}</span>
+      </span>
+    </div>
+  </div>
+
+  <div class="nav-links">
+    <a href="/change-password">パスワード変更</a>
+    <a href="/orders">購入履歴</a>
+    <a href="/shop">ショップへ戻る</a>
+  </div>
+</div>
+{% endblock %}

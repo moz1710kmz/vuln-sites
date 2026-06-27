@@ -1,0 +1,12 @@
+============================================
+VulnEC 社内向け仕入メモ（取扱注意・公開不可）
+============================================
+このファイルは一覧（/shop/manuals）には掲載していないが、
+file= に直接指定すれば取得できてしまう（PATH-1 のディレクトリ内露出）。
+
+SUPPLIER_API_KEY=sk-vulnec-supplier-9c1f4ade
+INTERNAL_COST_RATE=0.42
+ADMIN_CONTACT=admin@vulnec.local
+INTERNAL_SECRET=int-vulnec-7c1f4ade9b20
+============================================
+secret.txt 同様、../app.py や ../../etc/passwd 等でディレクトリ外にも到達できる。

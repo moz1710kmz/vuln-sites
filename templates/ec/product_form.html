@@ -1,0 +1,18 @@
+{% extends "common/base.html" %}
+{% block title %}{{ '商品編集' if product else '新規商品' }} — {{ site_label }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:640px; margin:0 auto;">
+  <h1>{{ '商品編集' if product else '新規商品' }}</h1>
+  <form method="POST">
+    {{ csrf_field() }}{{ honeypot_field() }}
+    <label>商品名</label>
+    <input type="text" name="name" value="{{ product.name if product else '' }}" required>
+    <label>価格</label>
+    <input type="number" name="price" step="0.01" value="{{ product.price if product else '' }}" required>
+    <label>説明</label>
+    <textarea name="description">{{ product.description if product else '' }}</textarea>
+    <button class="btn btn-primary">{{ '更新' if product else '作成' }}</button>
+    <a class="btn btn-sm" href="/admin/products" style="background:#eee; color:#333;">キャンセル</a>
+  </form>
+</div>
+{% endblock %}

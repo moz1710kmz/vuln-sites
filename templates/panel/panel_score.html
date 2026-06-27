@@ -1,0 +1,53 @@
+{% extends "panel/panel_base.html" %}
+{% block title %}採点 — Control Panel{% endblock %}
+{% block nav_active %}score{% endblock %}
+{% block body %}
+<div class="wrap">
+  <div class="card">
+    <h1>自動採点（攻撃到達カバレッジ）</h1>
+    <p class="muted" style="margin-bottom:.8rem;">
+      アクセスログから「攻撃ペイロードが届いた」脆弱性を集計した指標です。
+      スキャナのレポート内容ではなく、<strong>到達/網羅性</strong>を測ります（総リクエスト {{ total_reqs }} 件）。
+    </p>
+    <p style="margin-bottom:1rem;">
+      <a class="btn btn-green" href="/score/download">⬇ レポートを PDF でダウンロード</a>
+    </p>
+
+    <div style="font-size:2rem; font-weight:700; margin-bottom:.5rem;">
+      {{ result.covered }} / {{ result.total }}
+      <span style="font-size:1rem; color:#94a3b8;">（観測可能な脆弱性のカバレッジ {{ result.percent }}%）</span>
+    </div>
+    <div style="background:#334155; border-radius:6px; height:14px; overflow:hidden; margin-bottom:1.5rem;">
+      <div style="background:#16a34a; height:100%; width:{{ result.percent }}%;"></div>
+    </div>
+
+    <h2>観測可能な脆弱性</h2>
+    <table style="width:100%; border-collapse:collapse; font-size:.88rem; margin-bottom:1.5rem;">
+      <tr style="text-align:left; border-bottom:1px solid #334155;">
+        <th style="padding:.4rem;">ID</th><th>種別</th><th>到達</th>
+      </tr>
+      {% for r in result.rows %}
+      <tr style="border-bottom:1px solid #1e293b;">
+        <td style="padding:.4rem;"><code>{{ r.id }}</code></td>
+        <td>{{ r.type }}</td>
+        <td>{% if r.covered %}<span class="pill pill-on">✓ 到達</span>{% else %}<span class="pill pill-off">✗ 未到達</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+
+    <h2>計測対象外（サーバ側で観測不可・N/A）</h2>
+    <table style="width:100%; border-collapse:collapse; font-size:.82rem;">
+      {% for r in result.na %}
+      <tr style="border-bottom:1px solid #1e293b;">
+        <td style="padding:.4rem;"><code>{{ r.id }}</code></td>
+        <td>{{ r.type }}</td>
+        <td style="color:#94a3b8;">{{ r.reason }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    <p class="muted" style="margin-top:1rem;">
+      ※「到達」は攻撃ペイロードがそのエンドポイントに送られたことを意味し、脆弱性の検出可否そのものとは別です。
+    </p>
+  </div>
+</div>
+{% endblock %}

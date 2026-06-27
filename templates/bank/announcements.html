@@ -1,0 +1,23 @@
+{% extends "common/base.html" %}
+{% block title %}VulnBank — お知らせ{% endblock %}
+{% block content %}
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <h1 style="margin:0;">VulnBank からのお知らせ</h1>
+    {% if user and user.role in ('staff', 'admin') %}
+    <a class="btn" href="/admin/announcements">お知らせ管理</a>
+    {% endif %}
+  </div>
+  <ul style="list-style:none;padding:0;margin:1rem 0 0;">
+    {% for a in announcements %}
+    <li style="{% if not loop.last %}border-bottom:1px solid #eee;{% endif %}padding:.6rem 0;">
+      <span style="color:#888;font-size:.85rem;">{{ a.published_at }}</span><br>
+      <strong>{{ a.title }}</strong><br>
+      <span style="color:#555;font-size:.93rem;">{{ a.body }}</span>
+    </li>
+    {% else %}
+    <li style="color:#777;padding:.6rem 0;">現在お知らせはありません。</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends "common/base.html" %}
+{% block title %}メール認証 — {{ site_label }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:480px; margin:2rem auto;">
+  <h1>メール認証</h1>
+  {% if ok %}
+  <div class="alert alert-success">
+    <strong>{{ username }}</strong> のメールアドレスを認証しました。ログインできます。
+  </div>
+  <a class="btn btn-primary" href="/login">ログインへ</a>
+  {% else %}
+  <div class="alert alert-error">
+    無効または期限切れの認証トークンです。
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

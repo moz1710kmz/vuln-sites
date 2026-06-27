@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}{{ site_label }}{% endblock %}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; color: #1a1a2e; min-height: 100vh; }
+    nav {
+      background: #1a1a2e; color: #fff; padding: 0 2rem;
+      display: flex; align-items: center; justify-content: space-between; height: 56px;
+    }
+    nav .nav-left { display: flex; align-items: center; gap: 1rem; }
+    nav .brand { font-size: 1.3rem; font-weight: 700; color: #4fc3f7; text-decoration: none; }
+    nav .nav-vuln-map { color: #90caf9; text-decoration: none; font-size: .85rem; white-space: nowrap; }
+    nav .nav-vuln-map:hover { color: #fff; }
+    nav ul { list-style: none; display: flex; gap: 1.4rem; }
+    nav ul a { color: #ccc; text-decoration: none; font-size: .9rem; }
+    nav ul a:hover { color: #fff; }
+    .badge { background: #e53935; color: #fff; font-size: .7rem; padding: 1px 5px; border-radius: 8px; margin-left: 4px; }
+    .container { max-width: 1000px; margin: 2rem auto; padding: 0 1rem; }
+    .card { background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.08); padding: 1.5rem; margin-bottom: 1.5rem; }
+    h1 { font-size: 1.6rem; margin-bottom: 1rem; color: #1a1a2e; }
+    h2 { font-size: 1.2rem; margin-bottom: .8rem; color: #1a1a2e; }
+    label { display: block; font-size: .85rem; margin-bottom: .3rem; color: #555; }
+    input[type=text], input[type=password], input[type=email], input[type=number], textarea, select {
+      width: 100%; padding: .55rem .75rem; border: 1px solid #ccc; border-radius: 5px;
+      font-size: .95rem; margin-bottom: .9rem;
+    }
+    textarea { min-height: 100px; resize: vertical; }
+    .btn { display: inline-block; padding: .55rem 1.3rem; border-radius: 5px; font-size: .9rem; cursor: pointer; border: none; }
+    .btn-primary { background: #1565c0; color: #fff; }
+    .btn-primary:hover { background: #0d47a1; }
+    .btn-danger  { background: #c62828; color: #fff; }
+    .btn-danger:hover  { background: #b71c1c; }
+    .btn-sm { padding: .3rem .8rem; font-size: .8rem; }
+    .alert { padding: .8rem 1rem; border-radius: 5px; margin-bottom: 1rem; }
+    .alert-error   { background: #ffebee; border: 1px solid #ef9a9a; color: #b71c1c; }
+    .alert-success { background: #e8f5e9; border: 1px solid #a5d6a7; color: #1b5e20; }
+    .alert-info    { background: #e3f2fd; border: 1px solid #90caf9; color: #0d47a1; }
+    table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    th, td { text-align: left; padding: .6rem .8rem; border-bottom: 1px solid #e0e0e0; }
+    th { background: #f5f5f5; font-weight: 600; }
+    code { background: #f5f5f5; padding: 1px 5px; border-radius: 3px; font-size: .85rem; }
+    pre  { background: #1a1a2e; color: #e0e0e0; padding: 1rem; border-radius: 6px; overflow-x: auto; font-size: .85rem; white-space: pre-wrap; }
+    .tag { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: .75rem; font-weight: 600; }
+    .tag-sqli   { background: #fff3e0; color: #e65100; }
+    .tag-xss    { background: #fce4ec; color: #880e4f; }
+    .tag-csrf   { background: #e8eaf6; color: #1a237e; }
+    .tag-idor   { background: #e0f2f1; color: #004d40; }
+    .tag-path   { background: #f3e5f5; color: #4a148c; }
+    .tag-cmd    { background: #fbe9e7; color: #bf360c; }
+    .tag-authz  { background: #e1f5fe; color: #01579b; }
+    .tag-biz    { background: #f1f8e9; color: #33691e; }
+    .tag-auth   { background: #fff8e1; color: #f57f17; }
+    footer { text-align: center; color: #999; font-size: .8rem; padding: 2rem; }
+    .support-widget {
+      position: fixed; right: 1rem; bottom: 1rem; z-index: 50;
+      width: min(360px, calc(100vw - 2rem)); background: #fff;
+      border: 1px solid #cfd8dc; border-radius: 8px;
+      box-shadow: 0 12px 28px rgba(26,26,46,.22); overflow: hidden;
+    }
+    .support-widget__header {
+      background: #1a1a2e; color: #fff; padding: .75rem .9rem;
+      display: flex; align-items: center; justify-content: space-between; gap: .75rem;
+    }
+    .support-widget__title { font-size: .95rem; font-weight: 700; }
+    .support-widget__room { color: #b3e5fc; font-size: .75rem; font-weight: 600; }
+    .support-widget__toggle {
+      border: 1px solid rgba(255,255,255,.35); background: transparent; color: #fff;
+      width: 1.8rem; height: 1.8rem; border-radius: 5px; cursor: pointer; font-size: 1rem;
+      line-height: 1;
+    }
+    .support-widget__body { padding: .8rem; }
+    .support-widget__status { font-size: .78rem; color: #777; margin-bottom: .5rem; }
+    .support-widget__log {
+      height: 210px; overflow-y: auto; background: #f7f9fc; border: 1px solid #e0e0e0;
+      border-radius: 6px; padding: .75rem; margin-bottom: .65rem;
+    }
+    .support-widget__log .msg { margin-bottom: .55rem; font-size: .88rem; line-height: 1.45; }
+    .support-widget__log .msg b { color: #0d47a1; }
+    .support-widget__log .msg.staff b { color: #00695c; }
+    .support-widget__form { display: flex; gap: .5rem; }
+    .support-widget__form input { margin-bottom: 0; }
+    .support-widget.is-collapsed .support-widget__body { display: none; }
+    @media (max-width: 560px) {
+      .support-widget {
+        right: .5rem; bottom: .5rem; width: calc(100vw - 1rem);
+      }
+      .support-widget__log { height: 180px; }
+    }
+  </style>
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+<nav>
+  {% set _site_icons = {'bank': '🏦', 'ec': '🛍️', 'board': '📋', 'graphql': '⚡'} %}
+  <div class="nav-left">
+    <a class="brand" href="/">{{ _site_icons.get(site_mode, '🏦') }} {{ site_label }}</a>
+    {% if not hide_vuln_map %}<a class="nav-vuln-map" href="/vuln-map">脆弱性マップ <span class="badge">{{ vuln_count }}</span></a>{% endif %}
+  </div>
+  <ul>
+    {% if show_ec_nav %}
+    <li><a href="/blog">Blog</a></li>
+    {# 運営アカウント(staff/admin)は買い物をしないため、購買導線は出さない。 #}
+    {% if not (user and user.role in ('staff', 'admin')) %}
+    <li><a href="/shop">ショップ</a></li>
+    <li><a href="/cart">🛒 カート{% if cart_count() %} ({{ cart_count() }}){% endif %}</a></li>
+    {% endif %}
+    {% endif %}
+    {% if user %}
+      {% if show_ec_nav and user.role not in ('staff', 'admin') %}
+      <li><a href="/mypage">マイページ</a></li>
+      {% endif %}
+      {% if show_bank_nav %}
+      {% include "bank/_nav.html" with context %}
+      {% endif %}
+      {% if show_ec_nav and user.role in ('staff', 'admin') %}
+      <li><a href="/admin/products">商品管理</a></li>
+      <li><a href="/blog/new">記事投稿</a></li>
+      {% endif %}
+      {% if show_ec_nav and user.role == 'admin' %}
+      <li><a href="/admin/users">ユーザー管理</a></li>
+      <li><a href="/admin">管理</a></li>
+      {% endif %}
+      {# パスワード変更はヘッダーではなく、Bank はプロフィール、EC はマイページから辿る。 #}
+      <li><a href="/logout">ログアウト</a></li>
+    {% else %}
+      <li><a href="/login">ログイン</a></li>
+      <li><a href="/register">登録</a></li>
+    {% endif %}
+  </ul>
+</nav>
+<div class="container">
+  {% block content %}{% endblock %}
+</div>
+<footer>
+  {{ site_label }} — For security testing purposes only. <strong>DO NOT deploy in production.</strong>
+  {% if delivery_dev_inbox and (f_email or f_otp or f_totp) %}
+  <br>
+  <span style="opacity:.8;">
+    🧪 評価用ツール（{{ site_label }}外）:
+    <a href="/dev/inbox" target="_blank" rel="noopener" style="color:#999;">📨 Dev Inbox（擬似メール/SMSサーバ）</a>
+  </span>
+  {% endif %}
+  {% if site_mode == 'bank' %}
+  {% include "bank/_footer.html" with context %}
+  {% endif %}
+</footer>
+{# 右下の顧客向けサポートチャットは利用者(user)のみ。support/admin は応対側なので非表示。 #}
+{% if show_bank_nav and user and user.role == 'user' and not request.path.startswith('/support/admin') %}
+  {% include "bank/support.html" %}
+{% endif %}
+</body>
+</html>

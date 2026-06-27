@@ -1,0 +1,82 @@
+{% extends "common/base.html" %}
+{% from "common/macros.html" import vuln_hint with context %}
+{% block title %}サポート管理 — {{ site_label }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .support-grid { display: grid; grid-template-columns: 220px 1fr; gap: 1rem; }
+  .room-list { list-style: none; }
+  .room-list li { margin-bottom: .4rem; }
+  .room-list a { display: block; padding: .5rem .7rem; border-radius: 5px; text-decoration: none;
+                 color: #1a1a2e; background: #f3f5f9; font-size: .88rem; }
+  .room-list a.active { background: #1565c0; color: #fff; }
+  .chat-log { height: 380px; overflow-y: auto; background: #f7f9fc; border: 1px solid #e0e0e0;
+              border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+  .chat-log .msg { margin-bottom: .6rem; font-size: .92rem; line-height: 1.5; }
+  .chat-log .msg b { color: #0d47a1; }
+  .chat-row { display: flex; gap: .6rem; }
+  .chat-row input { margin-bottom: 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <h1>サポート管理コンソール</h1>
+  <p style="color:#555; font-size:.9rem; margin-bottom:1rem;">
+    担当: <b>{{ user.username }}</b>（{{ user.role }}）。お客様からの問い合わせルームを選択して対応します。
+  </p>
+  {% call vuln_hint("WS-1 / WS-2 / WS-3 / WS-4 PoC") %}
+    <code>/support/ws</code> はアドレスバーで開くページではなく、WebSocket クライアントで接続するエンドポイントです。
+    WebSocket ハンドシェイクでは Origin と room 所有者を検証しません。本文は HTML として描画されるため
+    <code>&lt;img src=x onerror=alert(document.cookie)&gt;</code> がスタッフ画面でも発火し、フレーム内の
+    <code>sender</code> を指定すると送信者名も詐称できます。
+  {% endcall %}
+  <div class="support-grid">
+    <ul class="room-list">
+      {% for r in rooms %}
+      <li><a href="/support/admin?room={{ r }}" class="{{ 'active' if r == room else '' }}">{{ r }}</a></li>
+      {% else %}
+      <li style="color:#888; font-size:.85rem;">問い合わせはまだありません。</li>
+      {% endfor %}
+    </ul>
+    <div>
+      <div style="font-size:.85rem; color:#666; margin-bottom:.5rem;">ルーム: <code>{{ room }}</code></div>
+      <div class="chat-log" id="log"></div>
+      <form class="chat-row" id="form" autocomplete="off">
+        <input type="text" id="body" placeholder="返信を入力…" required>
+        <button class="btn btn-primary" type="submit">返信</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  const ROOM = {{ room | tojson }};
+  const USERNAME = {{ user.username | tojson }};
+  // コンソール・顧客ウィジェットともページのスキームに追従する（HTTPS なら wss://）。
+  const proto = (location.protocol === 'https:') ? 'wss://' : 'ws://';
+  const WS_URL = proto + location.host + '/support/ws?room=' + encodeURIComponent(ROOM);
+
+  const logEl = document.getElementById('log');
+  function append(m) {
+    // [VULN WS-2] お客様メッセージを innerHTML 相当でそのまま描画する。
+    //   顧客が仕込んだ <img onerror=...> がこのコンソール（staff セッション）で実行され、
+    //   HttpOnly 欠如(COOKIE-1)のセッション Cookie を窃取され権限昇格につながる。
+    logEl.insertAdjacentHTML('beforeend',
+      '<div class="msg"><b>' + m.sender + '</b>: ' + m.body + '</div>');
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  let socket = new WebSocket(WS_URL);
+  socket.onmessage = (ev) => { try { append(JSON.parse(ev.data)); } catch (e) {} };
+
+  document.getElementById('form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const input = document.getElementById('body');
+    const body = input.value;
+    if (!body || socket.readyState !== WebSocket.OPEN) return;
+    socket.send(JSON.stringify({ body: body }));
+    input.value = '';
+  });
+</script>
+{% endblock %}

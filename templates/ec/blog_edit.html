@@ -1,0 +1,20 @@
+{% extends "common/base.html" %}
+{% from "common/macros.html" import vuln_hint with context %}
+{% block title %}記事編集 — {{ site_label }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:640px; margin:0 auto;">
+  <h1>ブログ記事の編集</h1>
+  {% call vuln_hint("AUTHZ-4 PoC") %}本来は<strong>店舗担当者・管理者</strong>のみが編集できますが、
+    サーバ側はロールも所有者も検証しないため、利用者でも任意の記事を改ざんできます（BFLA）。{% endcall %}
+  <!-- VULN: Stored XSS — title/body stored raw -->
+  <form method="POST">
+    {{ csrf_field() }}{{ honeypot_field() }}
+    <label>タイトル</label>
+    <input type="text" name="title" value="{{ post.title }}" required>
+    <label>本文{% if not nohint %} (HTML 可){% endif %}</label>
+    <textarea name="body">{{ post.body }}</textarea>
+    <button class="btn btn-primary">更新</button>
+    <a class="btn btn-sm" href="/blog/{{ post.id }}" style="background:#eee; color:#333;">キャンセル</a>
+  </form>
+</div>
+{% endblock %}

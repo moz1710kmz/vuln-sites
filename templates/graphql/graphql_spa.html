@@ -1,0 +1,176 @@
+{% from "common/macros.html" import vuln_hint with context -%}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VulnGraph — GraphQL ポータル</title>
+  <style>
+    /* 配色・基本レイアウトは VulnBank / VulnEC / VulnBoard と統一 */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; color: #1a1a2e; min-height: 100vh; }
+    nav { background: #1a1a2e; color: #fff; padding: 0 2rem;
+          display: flex; align-items: center; justify-content: space-between; height: 56px; }
+    nav .nav-left { display: flex; align-items: center; gap: 1rem; }
+    nav .brand { font-size: 1.3rem; font-weight: 700; color: #4fc3f7; text-decoration: none; }
+    nav .nav-vuln-map { color: #90caf9; text-decoration: none; font-size: .85rem; white-space: nowrap; }
+    nav .nav-vuln-map:hover { color: #fff; }
+    nav ul { list-style: none; display: flex; gap: 1.4rem; align-items: center; }
+    nav ul a, nav ul span { color: #ccc; text-decoration: none; font-size: .9rem; }
+    nav ul a:hover { color: #fff; cursor: pointer; }
+    .container { max-width: 1100px; margin: 2rem auto; padding: 0 1rem; }
+    .card { background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.08); padding: 1.5rem; margin-bottom: 1.5rem; }
+    h1 { font-size: 1.6rem; margin-bottom: 1rem; color: #1a1a2e; }
+    h2 { font-size: 1.1rem; margin-bottom: .8rem; color: #1a1a2e; }
+    label { display: block; font-size: .85rem; margin-bottom: .3rem; color: #555; }
+    input[type=text], input[type=password], textarea {
+      width: 100%; padding: .55rem .75rem; border: 1px solid #ccc; border-radius: 5px;
+      font-size: .95rem; margin-bottom: .9rem; font-family: inherit; }
+    textarea { font-family: monospace; font-size: .85rem; }
+    .btn { display: inline-block; padding: .55rem 1.3rem; border-radius: 5px; font-size: .9rem; cursor: pointer; border: none; }
+    .btn-primary { background: #1565c0; color: #fff; } .btn-primary:hover { background: #0d47a1; }
+    .btn-sm { padding: .3rem .8rem; font-size: .8rem; }
+    .alert { padding: .8rem 1rem; border-radius: 5px; margin-bottom: 1rem; }
+    .alert-info { background: #e3f2fd; border: 1px solid #90caf9; color: #0d47a1; }
+    .muted { color: #777; font-size: .85rem; }
+    pre  { background: #1a1a2e; color: #e0e0e0; padding: 1rem; border-radius: 6px; overflow:auto; font-size: .8rem; white-space: pre-wrap; word-break: break-all; }
+    code { background: #f5f5f5; padding: 1px 5px; border-radius: 3px; font-size: .85rem; }
+    .badge { background: #e53935; color: #fff; font-size: .7rem; padding: 1px 6px; border-radius: 8px; margin-left: 4px; }
+    .post { border-bottom: 1px solid #eee; padding: .6rem 0; }
+    .post b { display:block; }
+    .row { display:flex; gap:.6rem; align-items:flex-end; }
+    .row input { margin-bottom:0; }
+  </style>
+</head>
+<body>
+<nav>
+  <div class="nav-left">
+    <a class="brand" href="/">🔎 VulnGraph</a>
+    {% if not hide_vuln_map %}<a class="nav-vuln-map" href="/vuln-map">脆弱性マップ <span class="badge">{{ vuln_count }}</span></a>{% endif %}
+  </div>
+  <ul>
+    <li><span id="nav-user"></span></li>
+    <li><a href="/graphql" target="_blank" rel="noopener">GraphiQL</a></li>
+    <li id="nav-logout" style="display:none"><a onclick="doLogout()">ログアウト</a></li>
+  </ul>
+</nav>
+
+<div class="container">
+  {% if request.args.get('msg') %}<div class="alert alert-info">{{ request.args.get('msg')|safe }}</div>{% endif %}
+
+  {% call vuln_hint("GraphQL（GQL-1〜7）") %}<b>VulnGraph</b> は単一エンドポイント <code>/graphql</code> の
+    GraphQL API です（本物の ariadne / graphql-core）。脆弱性は resolver と設定に仕込まれています:
+    イントロスペクション開放・GraphiQL 公開・BOLA（<code>user(id)</code>）・BFLA/権限昇格（<code>updateUser</code>）・
+    引数 SQLi（<code>posts(search)</code>）・深さ/バッチ制限なし・GET でのミューテーション(CSRF)。
+    詳細は <a href="/vuln-map">脆弱性マップ</a> と <a href="/graphql" target="_blank" rel="noopener">GraphiQL</a> を参照。{% endcall %}
+
+  <!-- ログイン -->
+  <div class="card" id="login-card">
+    <h1>ログイン</h1>
+    <label>ユーザー名</label><input type="text" id="u" value="" autocomplete="off" placeholder="">
+    <label>パスワード</label><input type="password" id="p" value="" placeholder="">
+    <button class="btn btn-primary" onclick="doLogin()">ログイン</button>
+    <p class="muted" id="login-msg" style="margin-top:.6rem;"></p>
+    {% call vuln_hint("テストアカウント") %}<br>
+      <code>admin / admin123</code><br>
+      <code>alice / password123</code>
+    {% endcall %}
+  </div>
+
+  <!-- フィード -->
+  <div class="card" id="app" style="display:none">
+    <h1>フィード</h1>
+    <div id="feed"></div>
+  </div>
+
+  <!-- メンバー照会（BOLA を体験できる） -->
+  <div class="card" id="member-card" style="display:none">
+    <h2>メンバー照会</h2>
+    <div class="row">
+      <div style="flex:1"><label>ユーザーID</label><input type="text" id="uid" value="1"></div>
+      <button class="btn btn-primary btn-sm" onclick="lookupUser()">取得</button>
+    </div>
+    <pre id="member-out">（ID を指定して取得）</pre>
+  </div>
+
+  <!-- クエリコンソール（開発ポータル風） -->
+  <div class="card" id="console-card" style="display:none">
+    <h2>クエリコンソール</h2>
+    <textarea id="q" rows="5">{ posts { title author { name } } }</textarea>
+    <button class="btn btn-primary btn-sm" onclick="runConsole()">実行</button>
+    <pre id="console-out">（クエリを実行）</pre>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+async function gql(query, variables) {
+  const res = await fetch('/graphql', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({query, variables: variables || null}),
+  });
+  return res.json();
+}
+
+async function doLogin() {
+  const u = $('u').value, p = $('p').value;
+  const r = await gql('mutation($u:String!,$p:String!){ login(username:$u,password:$p){ token user{ id name role } } }',
+                      {u, p});
+  const payload = r.data && r.data.login;
+  if (!payload) { $('login-msg').textContent = 'ログインに失敗しました'; return; }
+  localStorage.setItem('vg_user', JSON.stringify(payload.user));
+  localStorage.setItem('vg_token', payload.token);
+  showApp();
+}
+
+function showApp() {
+  const user = JSON.parse(localStorage.getItem('vg_user') || 'null');
+  if (!user) return;
+  $('login-card').style.display = 'none';
+  $('app').style.display = 'block';
+  $('member-card').style.display = 'block';
+  $('console-card').style.display = 'block';
+  $('nav-logout').style.display = 'inline';
+  $('nav-user').textContent = user.name + (user.role === 'admin' ? '（管理者）' : '');
+  loadFeed();
+}
+
+function doLogout() {
+  localStorage.removeItem('vg_user');
+  localStorage.removeItem('vg_token');
+  location.href = '/';
+}
+
+async function loadFeed() {
+  const r = await gql('{ posts { title body author { name } } }');
+  const posts = (r.data && r.data.posts) || [];
+  $('feed').innerHTML = posts.map(p =>
+    '<div class="post"><b></b><span class="muted"></span><div></div></div>'
+  ).join('') || '<p class="muted">投稿がありません</p>';
+  // テキストは安全に差し込む
+  const nodes = $('feed').querySelectorAll('.post');
+  posts.forEach((p, i) => {
+    nodes[i].querySelector('b').textContent = p.title || '';
+    nodes[i].querySelector('.muted').textContent = 'by ' + ((p.author && p.author.name) || '不明');
+    nodes[i].querySelector('div').textContent = p.body || '';
+  });
+}
+
+async function lookupUser() {
+  const id = $('uid').value;
+  const r = await gql('query($id:ID!){ user(id:$id){ id name role email secretNote password } }', {id});
+  $('member-out').textContent = JSON.stringify(r.data && r.data.user, null, 2);
+}
+
+async function runConsole() {
+  const r = await gql($('q').value);
+  $('console-out').textContent = JSON.stringify(r, null, 2);
+}
+
+// 既にログイン済みなら復元
+if (localStorage.getItem('vg_user')) showApp();
+</script>
+</body>
+</html>

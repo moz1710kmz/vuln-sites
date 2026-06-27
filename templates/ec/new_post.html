@@ -1,0 +1,24 @@
+{% extends "common/base.html" %}
+{% from "common/macros.html" import vuln_hint with context %}
+{% block title %}新規投稿 — {{ site_label }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:640px; margin:0 auto;">
+  <h1>新規ブログ投稿</h1>
+  <!-- VULN: Stored XSS — title/body stored raw -->
+  <form method="POST">
+    {{ csrf_field() }}{{ honeypot_field() }}
+    <label>タイトル</label>
+    <input type="text" name="title" required>
+    <label>本文{% if not nohint %} (HTML 可){% endif %}</label>
+    <textarea name="body" placeholder="本文を入力…"></textarea>
+    <button class="btn btn-primary">投稿</button>
+  </form>
+  {% if f_waf %}
+  {% call vuln_hint("XSS-S2 PoC") %}タイトル・本文はサニタイズせず保存・表示されます（Stored XSS）。
+    WAF回避例: <code>&lt;svg onload=alert(1)&gt;</code>。{% endcall %}
+  {% else %}
+  {% call vuln_hint("XSS-S2 PoC") %}タイトル・本文はサニタイズせず保存・表示されます（Stored XSS）。
+    例: <code>&lt;img src=x onerror=alert(1)&gt;</code>。{% endcall %}
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,66 @@
+{% extends "common/base.html" %}
+{% block title %}ご注文ありがとうございます — {{ site_label }}{% endblock %}
+{% block extra_css %}
+<style>
+  .complete-icon { font-size: 3rem; text-align: center; margin-bottom: .8rem; }
+  .order-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: .9rem; }
+  .order-table th, .order-table td { text-align: left; padding: .5rem .8rem; border-bottom: 1px solid #e0e0e0; }
+  .order-table th { background: #f5f5f5; font-weight: 600; }
+  .order-table .amount { text-align: right; }
+  .total-row td { font-weight: 700; font-size: 1.05rem; border-top: 2px solid #1565c0; }
+  .actions { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 1.5rem; }
+  .actions a { flex: 1; min-width: 160px; text-align: center; padding: .7rem 1rem;
+               border-radius: 6px; text-decoration: none; font-size: .9rem; }
+  .actions a.primary { background: #1565c0; color: #fff; }
+  .actions a.primary:hover { background: #0d47a1; }
+  .actions a.secondary { background: #e8f0fe; color: #1565c0; border: 1px solid #90caf9; }
+  .actions a.secondary:hover { background: #d0e4fd; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="complete-icon">&#10003;</div>
+  <h1 style="text-align:center;">ご注文ありがとうございます</h1>
+
+  <div class="alert alert-success">{{ success }}</div>
+
+  {% if order_id %}
+  <p style="font-size:1.05rem; margin:.5rem 0 1rem;"><strong>注文番号 #{{ order_id }}</strong></p>
+  {% endif %}
+
+  {% if lines %}
+  <table class="order-table">
+    <thead>
+      <tr>
+        <th>商品名</th>
+        <th style="text-align:right;">数量</th>
+        <th style="text-align:right;">金額</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for l in lines %}
+      <tr>
+        <td>{{ l.product.name }}</td>
+        <td style="text-align:right;">× {{ l.qty }}</td>
+        <td style="text-align:right;">¥{{ l.line_total|yen }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr class="total-row">
+        <td colspan="2">合計</td>
+        <td style="text-align:right;">¥{{ total|yen }}</td>
+      </tr>
+    </tfoot>
+  </table>
+  {% endif %}
+
+  <div class="actions">
+    <a href="/shop" class="primary">続けて買い物する</a>
+    <a href="/orders" class="secondary">購入履歴</a>
+    {% if order_id %}
+    <a href="/orders/{{ order_id }}" class="secondary">注文詳細 #{{ order_id }}</a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

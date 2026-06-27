@@ -1,0 +1,33 @@
+<form method="POST">
+    {{ csrf_field() }}{{ honeypot_field() }}
+    <p style="font-size:.82rem; color:#555; margin-bottom:1rem;">
+      ※ 印の項目は必須です。お客さまの情報は口座開設の審査にのみ利用します。
+    </p>
+    <label>氏名（漢字）<span style="color:#c00;">※</span></label>
+    <input type="text" name="full_name" placeholder="架空 太郎">
+    <label>氏名（カナ）<span style="color:#c00;">※</span></label>
+    <input type="text" name="full_name_kana" placeholder="カクウ タロウ">
+    <label>生年月日<span style="color:#c00;">※</span></label>
+    <input type="date" name="birthdate">
+    <label>電話番号</label>
+    <input type="tel" name="phone" placeholder="090-XXXX-XXXX">
+    <label>郵便番号</label>
+    <input type="text" name="postal_code" placeholder="100-0001">
+    <label>住所</label>
+    <input type="text" name="address" placeholder="東京都千代田区〇〇1-2-3">
+    <hr style="margin:.8rem 0; border-color:#eee;">
+    <label>ログインID（ユーザー名）<span style="color:#c00;">※</span></label>
+    <input type="text" name="username" required>
+    <label>メールアドレス</label>
+    <input type="email" name="email">
+    <label>ログインパスワード<span style="color:#c00;">※</span></label>
+    <input type="password" name="password" required>
+    <div style="font-size:.82rem; margin-bottom:.9rem;">
+      <label style="display:inline; font-weight:normal;">
+        <input type="checkbox" name="agree_terms" value="1">
+        <a href="#" style="color:#1565c0;">利用規約</a>および
+        <a href="#" style="color:#1565c0;">プライバシーポリシー</a>に同意する<span style="color:#c00;">※</span>
+      </label>
+    </div>
+    <button class="btn btn-primary" style="width:100%;">口座開設を申し込む</button>
+  </form>

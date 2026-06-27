@@ -1,0 +1,48 @@
+{% extends "common/base.html" %}
+{% from "common/macros.html" import vuln_hint with context %}
+{% block title %}管理パネル — {{ site_label }}{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>管理パネル</h1>
+  <!-- VULN: Broken Access Control — accessible via ?admin=1 without auth -->
+  {% call vuln_hint("AUTHZ-1 / AUTH-1 PoC") %}このページは <code>/admin?admin=1</code> でロールを問わず
+    閲覧でき（認可不備）、下表のパスワード列は<strong>平文のまま</strong>保存・表示されています（AUTH-1）。{% endcall %}
+
+  <h2 style="margin-top:1.5rem;">全ユーザー一覧</h2>
+  <table>
+    <tr><th>ID</th><th>ユーザー名</th><th>メール</th><th>ロール</th><th>ポイント</th><th>パスワード</th><th></th></tr>
+    {% for u in users %}
+    <tr>
+      <td>{{ u.id }}</td>
+      {# /profile は Bank のルート。EC 単独起動時は存在しないので、その場合は素のテキストにする #}
+      <td>{% if show_bank_nav %}<a href="/profile/{{ u.id }}">{{ u.username }}</a>{% else %}{{ u.username }}{% endif %}</td>
+      <td>{{ u.email }}</td>
+      <td>{{ u.role }}</td>
+      <td>{{ u.balance|yen }} pt</td>
+      <td><code>{{ u.password }}</code></td>
+      <td>
+        <form method="POST" action="/admin/delete-user/{{ u.id }}?admin=1" style="display:inline;">
+          {{ csrf_field() }}{{ honeypot_field() }}
+          <button class="btn btn-danger btn-sm" onclick="return confirm('削除しますか?')">削除</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <h2 style="margin-top:1.5rem;">最近の注文</h2>
+  <table>
+    <tr><th>ID</th><th>ユーザーID</th><th>商品</th><th>合計</th><th>お届け先</th><th>日時</th></tr>
+    {% for o in orders %}
+    <tr>
+      <td><a href="/orders/{{ o.id }}">{{ o.id }}</a></td>
+      <td>{{ o.user_id }}</td>
+      <td>{{ o.item }}</td>
+      <td>¥{{ o.total|yen }}{% if o.payment_method == 'cod' %}（代引き）{% elif o.payment_method == 'combo' %}（併用）{% else %}（ポイント）{% endif %}</td>
+      <td>{% if o.ship_name or o.ship_address %}{{ o.ship_name }}／{{ o.ship_address }}{% else %}—{% endif %}</td>
+      <td>{{ o.created_at }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

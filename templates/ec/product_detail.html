@@ -1,0 +1,168 @@
+{% extends "common/base.html" %}
+{% from "common/macros.html" import vuln_hint with context %}
+{% block title %}{{ product.name }} — {{ site_label }}{% endblock %}
+{% block extra_css %}
+<style>
+  .crumb { font-size:.82rem; color:#888; margin-bottom:1rem; }
+  .crumb a { color:#1565c0; text-decoration:none; }
+  .detail { display:grid; grid-template-columns: minmax(0,1fr) minmax(0,1.2fr); gap:1.8rem; }
+  @media (max-width:720px){ .detail { grid-template-columns:1fr; } }
+  .hero { height:280px; border-radius:12px; display:flex; align-items:center; justify-content:center;
+          font-size:6rem; color:#fff; font-weight:700; }
+  .cat-tag { display:inline-block; background:#eef3fb; color:#1565c0; font-size:.72rem; font-weight:600;
+             padding:2px 10px; border-radius:12px; margin-bottom:.5rem; }
+  .stars { color:#f5a623; letter-spacing:1px; }
+  .price-big { font-size:2rem; color:#1565c0; font-weight:800; margin:.4rem 0; }
+  .price-tax { font-size:.78rem; color:#999; font-weight:400; margin-left:.4rem; }
+  .stock-ok { color:#1b8a3a; font-weight:600; font-size:.88rem; }
+  .stock-low { color:#d9822b; font-weight:600; font-size:.88rem; }
+  .feat { list-style:none; margin:.6rem 0; }
+  .feat li { padding:.28rem 0 .28rem 1.5rem; position:relative; font-size:.9rem; }
+  .feat li::before { content:"✓"; position:absolute; left:0; color:#1b8a3a; font-weight:700; }
+  .meta-row { font-size:.82rem; color:#777; margin-top:.3rem; }
+  .desc-body { white-space:pre-line; line-height:1.7; color:#333; }
+  .review { border-top:1px solid #eee; padding:.8rem 0; }
+  .review-head { font-size:.85rem; font-weight:600; }
+  .review-body { font-size:.88rem; color:#555; margin-top:.2rem; }
+  .buybox { background:#fafbfc; border:1px solid #e6e8ec; border-radius:10px; padding:1.1rem; margin-top:1rem; }
+  .related-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(160px,1fr)); gap:1rem; margin-top:1rem; }
+  .prod-card { border:1px solid #e6e8ec; border-radius:10px; padding:.9rem; text-align:center; transition:box-shadow .15s; }
+  .prod-card:hover { box-shadow:0 2px 10px rgba(0,0,0,.1); }
+  .prod-card .card-hero { height:80px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+                          font-size:2.2rem; color:#fff; font-weight:700; margin-bottom:.6rem; }
+  .prod-card .card-name { font-size:.88rem; font-weight:600; color:#222; margin-bottom:.3rem; }
+  .prod-card .card-price { font-size:.85rem; color:#1565c0; font-weight:700; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="crumb"><a href="/shop">ショップ</a> ／ {{ product.name }}</div>
+  {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+  {% if success %}<div class="alert alert-success">{{ success }}</div>{% endif %}
+
+  {% set hue = (product.id * 47) % 360 %}
+  <div class="detail">
+    <div>
+      <div class="hero" style="background:linear-gradient(135deg, hsl({{ hue }},65%,55%), hsl({{ (hue + 40) % 360 }},65%,42%));">
+        {{ product.name[:1]|upper }}
+      </div>
+    </div>
+
+    <div>
+      <span class="cat-tag">{{ meta.category }}</span>
+      <h1 style="margin-bottom:.3rem;">{{ product.name }}</h1>
+      <div>
+        {% if meta.rating %}
+        <span class="stars">{% for _ in range(meta.rating|round(0,'floor')|int) %}★{% endfor %}{% for _ in range(5 - (meta.rating|round(0,'floor')|int)) %}☆{% endfor %}</span>
+        <span style="font-size:.82rem; color:#777;">{{ meta.rating }} ／ {{ meta.rating_count }}件のレビュー</span>
+        {% else %}
+        <span style="font-size:.82rem; color:#999;">まだ評価がありません</span>
+        {% endif %}
+      </div>
+      <p style="color:#555; margin:.5rem 0;">{{ meta.tagline }}</p>
+
+      <div class="price-big">¥{{ product.price|yen }}<span class="price-tax">（税込）</span></div>
+      {% if meta.stock <= 10 %}
+      <div class="stock-low">残りわずか（在庫 {{ meta.stock }} 点）</div>
+      {% else %}
+      <div class="stock-ok">在庫あり</div>
+      {% endif %}
+      <div class="meta-row">商品番号: {{ meta.sku }}</div>
+
+      <ul class="feat">
+        {% for f in meta.features %}<li>{{ f }}</li>{% endfor %}
+      </ul>
+
+      <div class="buybox">
+        {% if user and user.role in ('staff', 'admin') %}
+        <p style="font-size:.78rem; color:#999;">運営アカウントではお買い物いただけません。</p>
+        {% else %}
+        <form method="POST" action="/cart/add">
+          {{ csrf_field() }}{{ honeypot_field() }}
+          <input type="hidden" name="product_id" value="{{ product.id }}">
+          <div style="display:flex; gap:.6rem; align-items:center; margin-bottom:.7rem;">
+            <label style="font-size:.85rem; color:#555;">数量</label>
+            <input type="number" name="quantity" value="1" min="1" style="width:80px; margin:0;">
+          </div>
+          <button class="btn btn-primary" type="submit" style="width:100%;">🛒 カートに追加</button>
+        </form>
+        {% if user %}
+        <a class="btn" style="width:100%; text-align:center; margin-top:.6rem; background:#eef3fb; color:#1565c0;" href="/shop/product/{{ product.id }}/checkout">今すぐ購入（1点）</a>
+        <p style="font-size:.78rem; color:#999; margin-top:.6rem;">
+          代引き・ポイント利用に対応 ・ ポイント残高: {{ user.balance|yen }} pt
+        </p>
+        {% else %}
+        <p style="font-size:.78rem; color:#999; margin-top:.6rem;">ご購入手続き（レジ）にはログインが必要です。</p>
+        {% endif %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>商品説明</h2>
+  <div class="desc-body">{{ product.description }}</div>
+  <p style="margin-top:1rem; font-size:.9rem;">
+    📄 <a href="/shop/manual?file=manual-{{ product.id }}.txt">取扱説明書（マニュアル）をダウンロード</a>
+  </p>
+  {% call vuln_hint("PATH-1 PoC") %}上のマニュアルDLリンクの <code>file</code> パラメータは封じ込めなしで <code>os.path.join</code> されます。
+    <code>file=../../../../etc/passwd</code>（や絶対パス <code>file=/etc/passwd</code>）に書き換えると、サーバ上の任意ファイルを読み出せます（Path Traversal）。{% endcall %}
+</div>
+
+<div class="card">
+  <h2>配送・返品について</h2>
+  <p style="font-size:.9rem; color:#555; line-height:1.7;">
+    ご注文確定後、デジタル特典は即時に有効化されます。お届け先の指定が必要な特典は通常 2〜4 営業日で発送します。
+    ご利用開始前であれば、購入から 14 日以内に限りキャンセル・返金を承ります。
+  </p>
+</div>
+
+<div class="card">
+  {% if meta.has_real_reviews %}
+  <h2>カスタマーレビュー（{{ meta.rating }} / 5.0 ・ {{ meta.rating_count }}件）</h2>
+  {% else %}
+  <h2>カスタマーレビュー</h2>
+  <p style="color:#888;">まだレビューがありません。ご購入後、<a href="/orders">購入履歴</a>から最初のレビューを投稿できます。</p>
+  {% endif %}
+  {% for r in meta.reviews %}
+  <div class="review">
+    <div class="review-head" style="display:flex; align-items:center; gap:.5rem;">
+      <span>{{ r.name }}</span>
+      <span class="stars">{% for _ in range(r.stars) %}★{% endfor %}{% for _ in range(5 - r.stars) %}☆{% endfor %}</span>
+      {% if r.date %}<span style="font-size:.78rem; color:#aaa; font-weight:400;">{{ r.date }}</span>{% endif %}
+      {% if r.id and user and user.role in ('staff', 'admin') %}
+      <form method="POST" action="/shop/reviews/{{ r.id }}/delete" style="margin-left:auto;">
+        {{ csrf_field() }}{{ honeypot_field() }}
+        <button class="btn btn-danger btn-sm" onclick="return confirm('このレビューを削除しますか?')">削除</button>
+      </form>
+      {% endif %}
+    </div>
+    <!-- VULN: Stored XSS (XSS-S3) — 購入者レビュー本文を |safe で未エスケープ描画 -->
+    <div class="review-body">{{ r.body | safe }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+{% if related %}
+<div class="card">
+  <h2>関連商品</h2>
+  <div class="related-grid">
+    {% for rp in related %}
+    {% set rp_hue = (rp.id * 47) % 360 %}
+    <a href="/shop/product/{{ rp.id }}" style="text-decoration:none;">
+      <div class="prod-card">
+        <div class="card-hero" style="background:linear-gradient(135deg, hsl({{ rp_hue }},65%,55%), hsl({{ (rp_hue + 40) % 360 }},65%,42%));">
+          {{ rp.name[:1]|upper }}
+        </div>
+        <div class="card-name">{{ rp.name }}</div>
+        <div class="card-price">¥{{ rp.price|yen }}</div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<p style="margin-bottom:2rem;"><a href="/shop">← ショップ一覧に戻る</a></p>
+{% endblock %}

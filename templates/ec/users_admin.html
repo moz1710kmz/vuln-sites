@@ -1,0 +1,41 @@
+{% extends "common/base.html" %}
+{% from "common/macros.html" import vuln_hint with context %}
+{% block title %}ユーザー管理 — {{ site_label }}{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>ユーザー管理</h1>
+  {% call vuln_hint("AUTHZ-3 PoC") %}本来は<strong>管理者</strong>のみが利用者・{% if site_mode == 'bank' %}サポート担当{% else %}店舗担当者{% endif %}のロールを
+    変更できる画面ですが、サーバ側は admin ロールを検証しません。非管理者でも
+    <code>/admin/users/&lt;id&gt;/role</code> に <code>role=admin</code> を送れば権限昇格できます
+    （権限昇格・マスアサインメント）。{% endcall %}
+
+  <table>
+    <tr><th>ID</th><th>ユーザー名</th><th>メール</th><th>現在のロール</th><th>ロール変更</th></tr>
+    {% for u in users %}
+    <tr>
+      <td>{{ u.id }}</td>
+      <td>{{ u.username }}</td>
+      <td>{{ u.email }}</td>
+      <td>{{ u.role }}</td>
+      <td>
+        <form method="POST" action="/admin/users/{{ u.id }}/role" style="display:flex; gap:.4rem; align-items:center;">
+          {{ csrf_field() }}{{ honeypot_field() }}
+          {# ロール選択肢はサイトのロールモデルに合わせる:
+             bank = 利用者/サポート担当/管理者, ec = 利用者/店舗担当者/管理者。 #}
+          <select name="role" style="width:auto; margin-bottom:0;">
+            <option value="user"    {% if u.role == 'user'    %}selected{% endif %}>利用者 (user)</option>
+            {% if site_mode == 'bank' %}
+            <option value="staff" {% if u.role == 'staff' %}selected{% endif %}>サポート担当 (staff)</option>
+            {% else %}
+            <option value="staff"   {% if u.role == 'staff'   %}selected{% endif %}>店舗担当者 (staff)</option>
+            {% endif %}
+            <option value="admin"   {% if u.role == 'admin'   %}selected{% endif %}>管理者 (admin)</option>
+          </select>
+          <button class="btn btn-primary btn-sm">更新</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

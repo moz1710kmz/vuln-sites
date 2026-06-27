@@ -1,0 +1,8 @@
+[
+  {"type": "GraphQL Introspection Enabled", "url": "https://localhost:8084/graphql", "cwe": 200, "severity": "Medium"},
+  {"type": "GraphQL Endpoint - GraphiQL Interface Exposed", "url": "https://localhost:8084/graphql", "severity": "Low"},
+  {"type": "Broken Object Level Authorization (BOLA) in GraphQL query", "url": "https://localhost:8084/graphql", "param": "user(id)", "cwe": 639, "severity": "High"},
+  {"type": "GraphQL SQL Injection via field argument", "url": "https://localhost:8084/graphql", "param": "posts(search)", "cwe": 89, "severity": "High"},
+  {"type": "GraphQL mutation accepted over GET (CSRF)", "url": "https://localhost:8084/graphql", "cwe": 352, "severity": "Medium"},
+  {"type": "Server Leaks Version Information via Server HTTP Response Header", "url": "https://localhost:8084/", "cwe": 200, "severity": "Low"}
+]

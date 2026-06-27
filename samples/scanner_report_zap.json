@@ -1,0 +1,106 @@
+{
+  "@programName": "OWASP ZAP",
+  "@version": "2.15.0",
+  "@generated": "Mon, 1 Jun 2026 10:00:00",
+  "site": [
+    {
+      "@name": "http://localhost:8082",
+      "@host": "localhost",
+      "@port": "8082",
+      "@ssl": "false",
+      "alerts": [
+        {
+          "pluginid": "40018",
+          "alertRef": "40018",
+          "alert": "SQL Injection",
+          "name": "SQL Injection",
+          "riskcode": "3",
+          "confidence": "2",
+          "riskdesc": "High (Medium)",
+          "cweid": "89",
+          "wascid": "19",
+          "instances": [
+            {"uri": "http://localhost:8082/blog/search", "method": "GET", "param": "q", "attack": "' UNION SELECT 1,2,3-- -"}
+          ]
+        },
+        {
+          "pluginid": "40012",
+          "alert": "Cross Site Scripting (Reflected)",
+          "name": "Cross Site Scripting (Reflected)",
+          "riskcode": "3",
+          "confidence": "2",
+          "cweid": "79",
+          "instances": [
+            {"uri": "http://localhost:8082/blog/search", "method": "GET", "param": "q", "attack": "<script>alert(1)</script>"}
+          ]
+        },
+        {
+          "pluginid": "40014",
+          "alert": "Cross Site Scripting (Persistent)",
+          "name": "Cross Site Scripting (Persistent)",
+          "riskcode": "3",
+          "confidence": "2",
+          "cweid": "79",
+          "instances": [
+            {"uri": "http://localhost:8082/blog/2/comment", "method": "POST", "param": "body", "attack": "<img src=x onerror=alert(1)>"}
+          ]
+        },
+        {
+          "pluginid": "6",
+          "alert": "Path Traversal",
+          "name": "Path Traversal",
+          "riskcode": "3",
+          "confidence": "2",
+          "cweid": "22",
+          "instances": [
+            {"uri": "http://localhost:8082/shop/manual", "method": "GET", "param": "file", "attack": "../../../../etc/passwd"}
+          ]
+        },
+        {
+          "pluginid": "90020",
+          "alert": "Remote OS Command Injection",
+          "name": "Remote OS Command Injection",
+          "riskcode": "3",
+          "confidence": "2",
+          "cweid": "78",
+          "instances": [
+            {"uri": "http://localhost:8082/admin/image-import", "method": "POST", "param": "image_url", "attack": "http://x/a.jpg | id #"}
+          ]
+        },
+        {
+          "pluginid": "10020",
+          "alert": "Missing Anti-clickjacking Header",
+          "name": "Missing Anti-clickjacking Header",
+          "riskcode": "1",
+          "confidence": "2",
+          "cweid": "1021",
+          "instances": [
+            {"uri": "http://localhost:8082/", "method": "GET", "param": ""}
+          ]
+        },
+        {
+          "pluginid": "10038",
+          "alert": "Content Security Policy (CSP) Header Not Set",
+          "name": "Content Security Policy (CSP) Header Not Set",
+          "riskcode": "2",
+          "confidence": "2",
+          "cweid": "693",
+          "instances": [
+            {"uri": "http://localhost:8082/", "method": "GET", "param": ""}
+          ]
+        },
+        {
+          "pluginid": "10096",
+          "alert": "Timestamp Disclosure - Unix",
+          "name": "Timestamp Disclosure - Unix",
+          "riskcode": "0",
+          "confidence": "1",
+          "cweid": "200",
+          "instances": [
+            {"uri": "http://localhost:8082/blog", "method": "GET", "param": ""}
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+<li><a href="/profile/{{ user.id }}">{{ user.username }}</a></li>
+      {% if user.role == 'user' %}
+      <li><a href="/transfer">送金</a></li>
+      <li>
+        <a href="/announcements">お知らせ{% if bank_unread_count %}<span class="badge">{{ bank_unread_count }}</span>{% endif %}</a>
+      </li>
+      {% endif %}
+      {% if not show_ec_nav and user.role == 'admin' %}
+      <li><a href="/admin/users">ユーザー管理</a></li>
+      {% endif %}
+      {% if user.role in ('staff', 'admin') %}
+      <li><a href="/support/admin">サポート管理</a></li>
+      <li><a href="/admin/announcements">お知らせ管理</a></li>
+      {% endif %}

@@ -1,0 +1,171 @@
+{% extends "common/base.html" %}
+{% from "common/macros.html" import vuln_hint with context %}
+{% block title %}ショップ — {{ site_label }}{% endblock %}
+{% block extra_css %}
+<style>
+  .prod-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(260px,1fr)); gap:1.2rem; margin-top:1rem; }
+  .prod-card { display:flex; flex-direction:column; background:#fff; border:1px solid #eee; border-radius:10px;
+               overflow:hidden; text-decoration:none; color:inherit; transition: box-shadow .15s, transform .15s; }
+  .prod-card:hover { box-shadow:0 6px 18px rgba(0,0,0,.12); transform: translateY(-2px); }
+  .prod-thumb { height:150px; display:flex; align-items:center; justify-content:center; font-size:3rem;
+                color:#fff; font-weight:700; }
+  .prod-body { padding:.9rem 1rem 1.1rem; display:flex; flex-direction:column; flex:1; }
+  .prod-name { font-size:1.05rem; font-weight:700; margin-bottom:.25rem; }
+  .prod-desc { color:#666; font-size:.82rem; line-height:1.4; flex:1;
+               display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .prod-price { font-size:1.25rem; color:#1565c0; font-weight:700; margin:.6rem 0 .2rem; }
+  .prod-cta { font-size:.8rem; color:#1565c0; font-weight:600; }
+  .prod-cell { display:flex; flex-direction:column; gap:.5rem; }
+  .prod-cell .prod-card { flex:1; }
+  .add-form { margin:0; }
+</style>
+{% endblock %}
+{% block content %}
+{% if not nohint %}
+<div style="background:linear-gradient(90deg,#1565c0,#0d47a1); color:#fff; padding:.75rem 1.25rem; border-radius:8px; margin-bottom:1rem; font-size:.95rem;">
+  <strong>季節のセール開催中！</strong> 対象商品が最大 30% OFF &#8212; 今すぐチェック
+</div>
+{% endif %}
+{# クーポン掲示は店舗の通常コンテンツ。nohint でも常時表示する（コード/残り回数が
+   分からないと BIZ-3 に着手できないため）。レース自体の解説はチェックアウトの vuln_hint 側。 #}
+{% if coupons %}
+<div style="background:#fff8e1; border:1px solid #ffe082; border-radius:8px; padding:.75rem 1.25rem; margin-bottom:1rem; font-size:.92rem;">
+  <strong>🎟️ ご利用いただけるクーポン</strong>
+  <ul style="margin:.4rem 0 .2rem; padding-left:1.2rem; list-style:disc;">
+    {% for c in coupons %}
+    {% set remaining = c.max_uses - c.used_count %}
+    <li>
+      <code>{{ c.code }}</code> ― {{ (c.discount * 100)|round|int }}%OFF
+      {%- if c.max_uses == 1 %} ／ <span style="color:#c62828;">数量限定・先着1名様</span>（残り{{ remaining if remaining > 0 else 0 }}回）
+      {%- else %}（残り{{ remaining if remaining > 0 else 0 }}回 ／ 全{{ c.max_uses }}回）{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  <p style="margin:.2rem 0 0; font-size:.8rem; color:#777;">お支払い画面でコードを入力すると割引が適用されます。</p>
+</div>
+{% endif %}
+<div class="card">
+  <h1>ショップ</h1>
+  <p style="color:#555; font-size:.9rem; margin-top:-.4rem; margin-bottom:.6rem;">全 {{ products|length }} 件</p>
+
+  <div id="categoryTabs" style="display:flex; flex-wrap:wrap; gap:.4rem; margin-bottom:1rem;">
+    <button class="btn btn-sm cat-tab" data-filter="all" style="background:#1565c0; color:#fff;">すべて</button>
+    {% for cat in categories %}
+    <button class="btn btn-sm cat-tab" data-filter="{{ cat }}">{{ cat }}</button>
+    {% endfor %}
+  </div>
+
+  {% if user and user.role not in ('staff', 'admin') %}<p>ポイント残高: <strong>{{ user.balance|yen }} pt</strong></p>{% endif %}
+  {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+  {% if success %}<div class="alert alert-success">{{ success }}</div>{% endif %}
+
+  <!-- VULN: DOM XSS — 店舗内検索のキーワードを innerHTML へ直接書き込む -->
+  <form id="shopSearchForm" style="display:flex; gap:.5rem; margin:.5rem 0 1rem;">
+    <input type="text" id="shopSearchInput" placeholder="店舗内を検索…（例: メンバーシップ）" autocomplete="off"
+           style="margin-bottom:0; flex:1;">
+    <button type="submit" class="btn btn-primary">検索</button>
+  </form>
+  <div id="searchResult" style="font-size:1.1rem; margin-bottom:1rem; min-height:1.5rem;"></div>
+
+  {% call vuln_hint("XSS-D PoC") %}店舗内検索のキーワードを
+    <code>searchResult.innerHTML = '「' + キーワード + '」の検索結果'</code> に直接書き込んでいます
+    （サニタイズなし）。キーワードは URL の <code>#q=</code> フラグメントにも反映されるため、
+    リンク共有でも再現します。例: <code>メンバーシップ</code> や
+    <code>&lt;img src=x onerror=alert(document.cookie)&gt;</code> を試してください。{% endcall %}
+
+  <div class="prod-grid">
+    {% for p in products %}
+    {% set hue = (p.id * 47) % 360 %}
+    <div class="prod-cell" data-category="{{ cat_by_id[p.id] if cat_by_id is defined else '' }}">
+      <a class="prod-card" href="/shop/product/{{ p.id }}">
+        <div class="prod-thumb" style="background:linear-gradient(135deg, hsl({{ hue }},65%,55%), hsl({{ (hue + 40) % 360 }},65%,42%));">
+          {{ p.name[:1]|upper }}
+        </div>
+        <div class="prod-body">
+          <div class="prod-name">{{ p.name }}</div>
+          <div class="prod-desc">{{ p.description }}</div>
+          <div class="prod-price">¥{{ p.price|yen }}</div>
+          <span class="prod-cta">詳細を見る →</span>
+        </div>
+      </a>
+      {% if not (user and user.role in ('staff', 'admin')) %}
+      <form class="add-form" method="POST" action="/cart/add">
+        {{ csrf_field() }}{{ honeypot_field() }}
+        <input type="hidden" name="product_id" value="{{ p.id }}">
+        <input type="hidden" name="quantity" value="1">
+        <button class="btn btn-primary btn-sm" type="submit" style="width:100%;">🛒 カートに追加</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<script>
+  // [VULN-DOM-XSS] 検索キーワード（location.hash 由来）を innerHTML へ無サニタイズで書き込む
+  function render(q) {
+    var box = document.getElementById('searchResult');
+    if (q) {
+      box.innerHTML = '「' + q + '」の検索結果';
+    } else {
+      box.textContent = '';
+    }
+    // 商品カードの絞り込み（装飾的：サーバ描画のカードは消さず display を切替）
+    var needle = (q || '').toLowerCase();
+    document.querySelectorAll('.prod-card').forEach(function (card) {
+      var hit = !needle || card.textContent.toLowerCase().indexOf(needle) !== -1;
+      card.style.display = hit ? '' : 'none';
+    });
+  }
+
+  var input = document.getElementById('shopSearchInput');
+
+  // フォーム送信：キーワードを URL ハッシュへ反映し描画（共有・戻る操作対応）
+  document.getElementById('shopSearchForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var v = input.value;
+    location.hash = 'q=' + encodeURIComponent(v);
+    render(v);
+  });
+
+  // URL ハッシュからの復元（共有リンク／戻る操作で再現） — #q=... 形式
+  function fromHash() {
+    var h = location.hash.slice(1);
+    if (h.indexOf('q=') === 0) {
+      var q = decodeURIComponent(h.slice(2));
+      input.value = q;
+      render(q);
+    } else {
+      render('');
+    }
+  }
+  window.addEventListener('hashchange', fromHash);
+  fromHash();
+</script>
+
+<script>
+  // カテゴリタブによる商品セルの表示切替（案2 — カテゴリフィルタ）
+  (function () {
+    var tabs = document.querySelectorAll('.cat-tab');
+    var cells = document.querySelectorAll('.prod-cell[data-category]');
+
+    function applyFilter(filter) {
+      tabs.forEach(function (t) {
+        var active = t.getAttribute('data-filter') === filter;
+        t.style.background = active ? '#1565c0' : '';
+        t.style.color = active ? '#fff' : '';
+      });
+      cells.forEach(function (cell) {
+        var show = filter === 'all' || cell.getAttribute('data-category') === filter;
+        cell.style.display = show ? '' : 'none';
+      });
+    }
+
+    tabs.forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        applyFilter(tab.getAttribute('data-filter'));
+      });
+    });
+  })();
+</script>
+{% endblock %}

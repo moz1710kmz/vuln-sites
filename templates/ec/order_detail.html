@@ -1,0 +1,68 @@
+{% extends "common/base.html" %}
+{% from "common/macros.html" import vuln_hint with context %}
+{% block title %}注文 #{{ order.id }} — {{ site_label }}{% endblock %}
+{% block extra_css %}
+<style>
+  .detail-card { border:1px solid #e6e8ec; border-radius:10px; padding:1.1rem 1.3rem; margin-bottom:1rem; }
+  .detail-card h3 { margin:0 0 .7rem; font-size:1rem; color:#444; border-bottom:1px solid #eee; padding-bottom:.4rem; }
+  .detail-table { width:100%; border-collapse:collapse; }
+  .detail-table th { text-align:left; width:8rem; color:#777; font-weight:500; padding:.35rem 0; font-size:.88rem; white-space:nowrap; }
+  .detail-table td { padding:.35rem 0; font-size:.92rem; }
+  .back-link { margin-bottom:1.2rem; display:inline-block; color:#1565c0; text-decoration:none; font-size:.9rem; }
+  .back-link:hover { text-decoration:underline; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="card">
+  <!-- VULN: IDOR — no ownership check -->
+  <a class="back-link" href="/orders">← 購入履歴に戻る</a>
+  <h1>注文詳細 #{{ order.id }}</h1>
+
+  <div class="detail-card">
+    <h3>注文情報</h3>
+    <table class="detail-table">
+      <tr><th>注文ID</th><td>{{ order.id }}</td></tr>
+      <tr><th>ユーザーID</th><td>{{ order.user_id }}</td></tr>
+      <tr><th>日時</th><td>{{ order.created_at }}</td></tr>
+    </table>
+  </div>
+
+  <div class="detail-card">
+    <h3>商品</h3>
+    <table class="detail-table">
+      <tr><th>商品名</th><td>{{ order.item }}</td></tr>
+      <tr><th>数量</th><td>{{ order.quantity }}</td></tr>
+      <tr><th>単価</th><td>¥{{ order.price|yen }}</td></tr>
+      <tr><th>合計</th><td>¥{{ order.total|yen }}</td></tr>
+      <tr><th>クーポン</th><td>{{ order.coupon_used or "なし" }}</td></tr>
+    </table>
+  </div>
+
+  <div class="detail-card">
+    <h3>お届け先</h3>
+    <table class="detail-table">
+      <tr><td colspan="2">
+        {% if order.ship_name or order.ship_address %}
+          {{ order.ship_name }}<br>
+          〒{{ order.ship_postal }} {{ order.ship_address }}<br>
+          TEL: {{ order.ship_phone }}
+        {% else %}（指定なし）{% endif %}
+      </td></tr>
+    </table>
+  </div>
+
+  <div class="detail-card">
+    <h3>支払い</h3>
+    <table class="detail-table">
+      <tr><th>支払い方法</th><td>
+        {% if order.payment_method == 'cod' %}代引き（代金引換）
+        {% elif order.payment_method == 'combo' %}ポイント＋代引き（{{ order.points_used|yen }} pt 利用 ／ 代引き ¥{{ (order.total - order.points_used)|yen }}）
+        {% else %}ポイント利用（{{ order.points_used|yen }} pt）{% endif %}
+      </td></tr>
+    </table>
+  </div>
+
+  {% call vuln_hint("IDOR-2 PoC") %}所有者チェックが無いため、URL の注文ID を変えるだけで他ユーザーの
+    注文を閲覧できます: <a href="/orders/1">/orders/1</a>, <a href="/orders/2">/orders/2</a>…{% endcall %}
+</div>
+{% endblock %}

@@ -1,0 +1,149 @@
+{% extends "common/base.html" %}
+{% from "common/macros.html" import vuln_hint with context %}
+{% block title %}送金 — VulnBank{% endblock %}
+{% block content %}
+<div class="card" style="max-width:480px; margin:0 auto;">
+  <h1>送金</h1>
+  <p style="color:#555; margin-bottom:1rem;">残高: <strong>¥{{ user.balance|yen }}</strong></p>
+  <!-- VULN: CSRF (no token) + Business Logic (negative amount steals funds) -->
+  {% if msg %}<div class="alert alert-success">{{ msg }}</div>{% endif %}
+  {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+  {% if otp_required %}
+  <!-- [HARD] SMS/OTP 確認ステップ -->
+  <div class="alert alert-info">
+    確認のため、登録番号に送信した <strong>OTP コード</strong>を入力してください。
+    {% if not nohint and delivery_dev_inbox %}
+    <br><span style="font-size:.85rem;">（評価用: コードは <a href="/dev/inbox" target="_blank" rel="noopener">/dev/inbox</a> で確認できます）</span>
+    {% endif %}
+  </div>
+  {% if delivery_error %}
+  <div class="alert alert-error">{{ delivery_error }}</div>
+  {% endif %}
+  <form method="POST" action="/transfer/confirm">
+    {{ csrf_field() }}{{ honeypot_field() }}
+    <label>OTP コード（6桁）</label>
+    <input type="text" name="otp" inputmode="numeric" autocomplete="one-time-code" placeholder="123456">
+    <!-- CSRF トークンなし -->
+    <button class="btn btn-primary" style="width:100%;">確認して送金</button>
+  </form>
+  {% elif confirm_view %}
+  <!-- 確認画面: 実際に選択された振込先・金額を表示する。 -->
+  <!-- 実行フォームは action なしの素 POST = 単発 POST で即実行され CSRF-2 / BIZ-1 を保持。 -->
+  <div style="background:#f0f4ff; border:1px solid #c3cfe2; border-radius:6px; padding:1rem; margin-bottom:1.2rem;">
+    <p style="font-weight:bold; margin:0 0 .6rem;">ご確認ください</p>
+    <table style="width:100%; border-collapse:collapse; font-size:.95rem;">
+      <tr style="border-bottom:1px solid #dde;">
+        <th style="text-align:left; padding:.3rem .5rem; color:#555; width:40%;">振込先</th>
+        <td style="padding:.3rem .5rem;">{{ confirm_to_name or "不明な口座" }}</td>
+      </tr>
+      <tr style="border-bottom:1px solid #dde;">
+        <th style="text-align:left; padding:.3rem .5rem; color:#555;">振込金額</th>
+        <td style="padding:.3rem .5rem;">¥{{ confirm_amount|yen }}</td>
+      </tr>
+      <tr style="border-bottom:1px solid #dde;">
+        <th style="text-align:left; padding:.3rem .5rem; color:#555;">手数料</th>
+        <td style="padding:.3rem .5rem;">0 円</td>
+      </tr>
+      <tr>
+        <th style="text-align:left; padding:.3rem .5rem; color:#555;">振込日</th>
+        <td style="padding:.3rem .5rem;">即時</td>
+      </tr>
+    </table>
+    <p style="font-size:.82rem; color:#666; margin:.6rem 0 0;">「この内容で送金する」を押すと、上記内容で送金が実行されます。</p>
+  </div>
+  <form method="POST">
+    {{ csrf_field() }}{{ honeypot_field() }}
+    <input type="hidden" name="to_user_id" value="{{ confirm_to_id }}">
+    <input type="hidden" name="amount" value="{{ confirm_amount }}">
+    <!-- CSRF トークンなし -->
+    <button class="btn btn-primary" style="width:100%;">この内容で送金する</button>
+  </form>
+  <p style="text-align:center; margin:.6rem 0 0;"><a href="/transfer">← 入力内容を修正する</a></p>
+  {% else %}
+  <!-- 口座番号主導線フォーム（プルダウン廃止・担当項目4） -->
+  <form method="POST" id="transfer_form">
+    {{ csrf_field() }}{{ honeypot_field() }}
+    <!-- hidden to_user_id: 口座番号照合後に JS で充填される。
+         CSRF-2 保持: このフィールドを直接 POST すれば照合なしで即送金できる。 -->
+    <input type="hidden" name="to_user_id" id="to_user_id_hidden" value="">
+    <label>口座番号（8桁）</label>
+    <div style="display:flex;gap:.5rem;align-items:center;">
+      <input type="text" id="account_number_input" name="account_number"
+             maxlength="8" inputmode="numeric" placeholder="例: 00000003"
+             style="font-family:monospace;letter-spacing:.1em;flex:1;">
+      <button type="button" id="account_lookup_btn" class="btn"
+              style="white-space:nowrap;">受取人を照合</button>
+    </div>
+    <div id="account_lookup_result" style="margin-top:.4rem;font-size:.9rem;color:#333;min-height:1.4em;"></div>
+    <label style="margin-top:.8rem;">金額</label>
+    <input type="text" id="amount_input" name="amount" inputmode="numeric"
+           autocomplete="off" placeholder="金額を入力">
+    <!-- CSRF トークンなし（CSRF-2 保持） -->
+    <button class="btn btn-primary" style="width:100%;margin-top:.8rem;" name="action" value="confirm">{% if f_otp %}OTP確認へ進む{% else %}送金内容を確認{% endif %}</button>
+  </form>
+  <script>
+  (function() {
+    var btn = document.getElementById('account_lookup_btn');
+    var inp = document.getElementById('account_number_input');
+    var res = document.getElementById('account_lookup_result');
+    var hiddenId = document.getElementById('to_user_id_hidden');
+    if (!btn) return;
+    btn.addEventListener('click', function() {
+      var acct = inp.value.trim();
+      if (!acct) { res.textContent = '口座番号を入力してください。'; return; }
+      res.textContent = '照合中...';
+      fetch('/transfer/lookup?account=' + encodeURIComponent(parseInt(acct, 10)))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.error) {
+            res.style.color = '#c0392b';
+            res.textContent = data.error;
+            hiddenId.value = '';
+          } else {
+            res.style.color = '#27ae60';
+            res.textContent = '受取人名: ' + data.username;
+            // 照合結果の user_id を hidden フィールドに充填（送金実行に使用）
+            hiddenId.value = data.user_id;
+          }
+        })
+        .catch(function() {
+          res.style.color = '#c0392b';
+          res.textContent = '照合に失敗しました。';
+          hiddenId.value = '';
+        });
+    });
+
+    // 金額欄: 入力中に 3 桁ごとカンマを挿入して表示する。送信直前にカンマを除去し、
+    // プレーンな数値として POST する（表示の整形のみ）。負数も許容し、サーバ側の
+    // 金額検証は一切足さない（BIZ-1 保持）。素 POST 攻撃はこのフォームを経由しない。
+    var amt = document.getElementById('amount_input');
+    var form = document.getElementById('transfer_form');
+    function groupThousands(value) {
+      var s = String(value).replace(/[^0-9.\-]/g, '');
+      var neg = s.indexOf('-') === 0;
+      s = s.replace(/-/g, '');
+      var parts = s.split('.');
+      var intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+      var out = (neg ? '-' : '') + intPart;
+      if (parts.length > 1) { out += '.' + parts.slice(1).join(''); }
+      return out;
+    }
+    if (amt) {
+      amt.addEventListener('input', function() {
+        amt.value = groupThousands(amt.value);
+      });
+    }
+    if (form) {
+      form.addEventListener('submit', function() {
+        if (amt) { amt.value = amt.value.replace(/,/g, ''); }
+      });
+    }
+  })();
+  </script>
+  {% call vuln_hint("CSRF-2 / BIZ-1 PoC") %}このフォームには CSRF トークンが無いため、別オリジンから
+    <code>to_user_id</code> と <code>amount</code> を POST するだけで送金できます。さらに
+    <code>amount</code> に負数（例 <code>-9999</code>）を指定すると、相手の残高を自分の口座へ移せます。{% endcall %}
+  {% endif %}
+</div>
+{% endblock %}

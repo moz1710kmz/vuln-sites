@@ -1,0 +1,211 @@
+{% extends "panel/panel_base.html" %}
+{% block title %}ダッシュボード — Control Panel{% endblock %}
+{% block nav_active %}dashboard{% endblock %}
+{% block body %}
+{% with msgs = get_flashed_messages(with_categories=true) %}
+{% if msgs %}
+<div class="toast-stack">
+  {% for category, message in msgs %}
+  <div class="alert alert-{{ 'ok' if category == 'ok' else 'err' }}">{{ message }}</div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+<div class="topline">
+  <h1>ダッシュボード</h1>
+  <div class="actions">
+    <button class="btn btn-green" form="start-form">
+      ⏻ {% if running %}再起動{% else %}起動{% endif %}
+    </button>
+    <form method="POST" action="/stop">
+      <button class="btn btn-amber" {% if not running %}disabled{% endif %}>■ 停止</button>
+    </form>
+    <form method="POST" action="/reset" onsubmit="return confirm('検証アプリを停止し、DBを初期化します。よろしいですか？');">
+      <button class="btn btn-red">⟳ 初期化</button>
+    </form>
+  </div>
+</div>
+
+<!-- 状態：サイトタイル -->
+<div class="section-title">検証アプリの状態</div>
+<div class="tiles">
+  {% for site, s in site_statuses.items() %}
+  <div class="tile {{ 'on' if s.running else '' }}">
+    <div class="nm">{{ s.label }}</div>
+    {% if s.running %}
+      <span class="pill pill-on">RUNNING</span>
+      <div class="port">ポート <code>{{ s.port }}</code> · <a class="link" href="{{ app_scheme }}://{{ app_host }}:{{ s.port }}/" target="_blank" rel="noopener">開く ↗</a></div>
+    {% else %}
+      <span class="pill pill-off">STOPPED</span>
+      <div class="port">ポート <code>{{ s.port }}</code></div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<!-- メトリクス -->
+<div class="metrics">
+  <div class="metric">
+    <div class="k">通信</div>
+    <div class="v">
+      {% if tls %}<span class="pill pill-on">HTTPS（自己署名）</span>
+      {% else %}<span class="pill pill-off">HTTP（VULN_TLS=0）</span>{% endif %}
+    </div>
+  </div>
+  <div class="metric">
+    <div class="k">有効な機能</div>
+    <div class="v">
+      {% if features %}{% for f in features %}<span class="pill pill-on">{{ f }}</span> {% endfor %}
+      {% else %}<span class="pill pill-off">なし</span>{% endif %}
+    </div>
+  </div>
+  <div class="metric">
+    <div class="k">通知配送</div>
+    <div class="v">
+      {% if running %}
+        {% if delivery.mode == 'smtp' %}<span class="pill pill-on">SMTP</span>
+          {% if delivery.smtp_host %}<code>{{ delivery.smtp_host }}:{{ delivery.smtp_port }}</code>{% endif %}
+        {% elif delivery.mode == 'ses' %}<span class="pill pill-on">Amazon SES</span> <code>{{ delivery.aws_region }}</code>
+        {% else %}<span class="pill pill-on">Dev Inbox</span>{% endif %}
+      {% else %}<span class="pill pill-off">無効</span>{% endif %}
+    </div>
+  </div>
+  <div class="metric metric-wide">
+    <div class="k">評価モード</div>
+    <div class="v">
+      {% if running %}
+        {% if nohint %}ヒント・脆弱性マップ非表示{% else %}ヒント・脆弱性マップ表示{% endif %}
+      {% else %}<span class="pill pill-off">無効</span>{% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- 起動設定 -->
+<div class="section-title">起動設定</div>
+<form id="start-form" method="POST" action="/start">
+  <div class="cols">
+    <!-- 左：起動対象＋セキュリティ機能 -->
+    <div class="card">
+      <h4>起動対象</h4>
+      {% for site, s in site_statuses.items() %}
+      <label class="feat">
+        <input type="checkbox" name="sites" value="{{ site }}" {% if s.running or not running %}checked{% endif %}>
+        <span><code>{{ s.label }}</code> — ポート {{ s.port }}</span>
+      </label>
+      {% endfor %}
+
+      <h4>セキュリティ機能</h4>
+      <p class="muted" style="margin-bottom:.8rem;">
+        有効にするセキュリティ機能を選択して起動します。どれも選ばなければ、セキュリティ機能なしの素の脆弱サイトになります。
+      </p>
+      {% set _feat_display = {'waf': 'WAF', 'otp': 'OTP', 'csrf': 'CSRF', 'totp': 'TOTP', 'ratelimit': 'Rate Limit', 'email_verify': 'Email Verify', 'honeypot': 'Honeypot'} %}
+      {% for f in all_features %}
+      <label class="feat">
+        <input type="checkbox" name="features" value="{{ f }}" {% if f in features %}checked{% endif %}>
+        <span><code>{{ _feat_display.get(f, f) }}</code>
+          {% if f == 'waf' %}— WAF風フィルタ（素朴な攻撃を403。回避可能）
+          {% elif f == 'otp' %}— 送金時に SMS/OTP の2段階確認
+          {% elif f == 'email_verify' %}— 登録時にメール認証
+          {% elif f == 'csrf' %}— 全フォームに CSRF トークンを要求
+          {% elif f == 'ratelimit' %}— ログイン失敗が続くとアカウントロック
+          {% elif f == 'totp' %}— ログイン時に2要素認証コード
+          {% elif f == 'honeypot' %}— 隠しフィールドで Bot を検知しブロック
+          {% endif %}
+        </span>
+      </label>
+      {% endfor %}
+    </div>
+
+    <!-- 右：評価モード＋メール配送 -->
+    <div class="card">
+      <h4>評価モード</h4>
+      <label class="feat">
+        <input type="checkbox" name="nohint" value="1" {% if nohint %}checked{% endif %}>
+        <span><code>nohint</code> — ヒント非表示。各ページのヒントと脆弱性マップを隠す。</span>
+      </label>
+
+      <h4>メール / OTP 配送</h4>
+      <label class="feat">
+        <input type="radio" name="delivery_mode" value="dev_inbox" {% if delivery.mode == 'dev_inbox' %}checked{% endif %}>
+        <span><code>dev_inbox</code> — 疑似メール/SMS受信箱（/dev/inbox）に表示</span>
+      </label>
+      <label class="feat">
+        <input type="radio" name="delivery_mode" value="smtp" {% if delivery.mode == 'smtp' %}checked{% endif %}>
+        <span><code>smtp</code> — 実SMTPサーバにメール送信</span>
+      </label>
+      <label class="feat">
+        <input type="radio" name="delivery_mode" value="ses" {% if delivery.mode == 'ses' %}checked{% endif %}>
+        <span><code>ses</code> — Amazon SES でメール送信</span>
+      </label>
+
+      <div class="grid delivery-settings" data-delivery-settings="smtp" style="margin-top:.8rem;" {% if delivery.mode != 'smtp' %}hidden{% endif %}>
+        <div>
+          <label>SMTPホスト</label>
+          <input type="text" name="smtp_host" value="{{ delivery.smtp_host }}" placeholder="smtp.example.com">
+        </div>
+        <div>
+          <label>SMTPポート</label>
+          <input type="number" name="smtp_port" value="{{ delivery.smtp_port or '587' }}">
+        </div>
+        <div>
+          <label>SMTPユーザー名</label>
+          <input type="text" name="smtp_username" value="{{ delivery.smtp_username }}" autocomplete="off">
+        </div>
+        <div>
+          <label>SMTPパスワード</label>
+          <input type="password" name="smtp_password" autocomplete="new-password">
+        </div>
+        <div>
+          <label>Fromアドレス</label>
+          <input type="email" name="smtp_from" value="{{ delivery.smtp_from }}" placeholder="vulnbank@example.test">
+        </div>
+        <div>
+          <label class="feat" style="margin-top:1.45rem;">
+            <input type="checkbox" name="smtp_tls" value="1" {% if delivery.smtp_tls %}checked{% endif %}>
+            <span>STARTTLSを使う</span>
+          </label>
+        </div>
+      </div>
+      <div class="grid delivery-settings" data-delivery-settings="ses" style="margin-top:.8rem;" {% if delivery.mode != 'ses' %}hidden{% endif %}>
+        <div>
+          <label>AWSリージョン</label>
+          <input type="text" name="aws_region" value="{{ delivery.aws_region or 'ap-northeast-1' }}" placeholder="ap-northeast-1">
+        </div>
+        <div>
+          <label>SES Fromアドレス</label>
+          <input type="email" name="ses_from" value="{{ delivery.ses_from }}" placeholder="vulnbank@example.test">
+        </div>
+        <div>
+          <label>AWS Access Key ID</label>
+          <input type="text" name="aws_access_key_id" value="{{ delivery.aws_access_key_id }}" autocomplete="off">
+        </div>
+        <div>
+          <label>AWS Secret Access Key</label>
+          <input type="password" name="aws_secret_access_key" autocomplete="new-password">
+        </div>
+      </div>
+    </div>
+  </div>
+
+</form>
+
+{% endblock %}
+{% block scripts %}
+<script>
+  (() => {
+    const radios = document.querySelectorAll('input[name="delivery_mode"]');
+    const groups = document.querySelectorAll('[data-delivery-settings]');
+
+    const syncDeliverySettings = () => {
+      const selected = document.querySelector('input[name="delivery_mode"]:checked')?.value || 'dev_inbox';
+      groups.forEach((group) => {
+        group.hidden = group.dataset.deliverySettings !== selected;
+      });
+    };
+
+    radios.forEach((radio) => radio.addEventListener('change', syncDeliverySettings));
+    syncDeliverySettings();
+  })();
+</script>
+{% endblock %}

@@ -1,0 +1,83 @@
+{% extends "common/base.html" %}
+{% from "common/macros.html" import vuln_hint with context %}
+{% block title %}口座情報 — VulnBank{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>口座情報</h1>
+  <!-- VULN: IDOR — no ownership check, any user can view any profile -->
+  <table class="account-info-table" style="width:100%; border-collapse:collapse;">
+    <tr>
+      <th style="text-align:left; padding:.5rem 1rem .5rem 0; border-bottom:1px solid #e0e0e0; width:40%;">口座番号</th>
+      <td style="padding:.5rem 0; border-bottom:1px solid #e0e0e0;">{{ "%07d"|format(target.id) }}</td>
+    </tr>
+    <tr>
+      <th style="text-align:left; padding:.5rem 1rem .5rem 0; border-bottom:1px solid #e0e0e0;">名義人</th>
+      <td style="padding:.5rem 0; border-bottom:1px solid #e0e0e0;">{{ target.username }}</td>
+    </tr>
+    <tr>
+      <th style="text-align:left; padding:.5rem 1rem .5rem 0; border-bottom:1px solid #e0e0e0;">登録メール</th>
+      <td style="padding:.5rem 0; border-bottom:1px solid #e0e0e0;">{{ target.email }}</td>
+    </tr>
+    <tr>
+      <th style="text-align:left; padding:.5rem 1rem .5rem 0; border-bottom:1px solid #e0e0e0;">口座種別</th>
+      <td style="padding:.5rem 0; border-bottom:1px solid #e0e0e0;">
+        {% if target.role == "admin" %}管理者{% else %}普通預金 / 一般{% endif %}
+      </td>
+    </tr>
+    <tr>
+      <th style="text-align:left; padding:.5rem 1rem .5rem 0; border-bottom:1px solid #e0e0e0;">普通預金残高</th>
+      <td style="padding:.5rem 0; border-bottom:1px solid #e0e0e0;">¥{{ target.balance|yen }}</td>
+    </tr>
+    <tr>
+      <th style="text-align:left; padding:.5rem 1rem .5rem 0; border-bottom:1px solid #e0e0e0;">口座開設日</th>
+      <td style="padding:.5rem 0; border-bottom:1px solid #e0e0e0;">
+        {%- set open_years = [2018, 2019, 2020, 2021, 2022] %}
+        {%- set open_months = ["01", "03", "04", "06", "09", "10", "11"] %}
+        {%- set open_days = ["01", "05", "10", "15", "20", "25"] %}
+        {{ open_years[target.id % open_years|length] }}/{{ open_months[target.id % open_months|length] }}/{{ open_days[target.id % open_days|length] }}
+      </td>
+    </tr>
+    <tr>
+      <th style="text-align:left; padding:.5rem 1rem .5rem 0; border-bottom:1px solid #e0e0e0;">最終取引日</th>
+      <td style="padding:.5rem 0; border-bottom:1px solid #e0e0e0;">
+        {%- set last_months = ["2025/10", "2025/11", "2025/12", "2026/01", "2026/02", "2026/03", "2026/04"] %}
+        {{ last_months[target.id % last_months|length] }}/{{ open_days[(target.id + 2) % open_days|length] }}
+      </td>
+    </tr>
+    <tr>
+      <th style="text-align:left; padding:.5rem 1rem .5rem 0; border-bottom:1px solid #e0e0e0;">キャッシュカード番号下4桁</th>
+      <td style="padding:.5rem 0; border-bottom:1px solid #e0e0e0;">
+        {%- set card_suffix = ((target.id * 3571 + 1234) % 10000) %}
+        ****-****-****-{{ "%04d"|format(card_suffix) }}
+      </td>
+    </tr>
+    <tr>
+      <th style="text-align:left; padding:.5rem 1rem .5rem 0; border-bottom:1px solid #e0e0e0;">振込限度額（1日）</th>
+      <td style="padding:.5rem 0; border-bottom:1px solid #e0e0e0;">
+        {%- set limits = [100000, 200000, 300000, 500000, 1000000] %}
+        ¥{{ "{:,}".format(limits[target.id % limits|length]) }}
+      </td>
+    </tr>
+    <tr>
+      <th style="text-align:left; padding:.5rem 1rem .5rem 0; border-bottom:1px solid #e0e0e0;">取引区分</th>
+      <td style="padding:.5rem 0; border-bottom:1px solid #e0e0e0;">
+        {% if target.role == "admin" %}システム管理用{% else %}インターネットバンキング{% endif %}
+      </td>
+    </tr>
+    <tr>
+      <th style="text-align:left; padding:.5rem 1rem .5rem 0;">内部管理メモ</th>
+      <td style="padding:.5rem 0; color:#c62828;">{{ target.secret_note }}</td>
+    </tr>
+  </table>
+  {% if user and user.id == target.id %}
+  <p style="margin-top:1rem;">
+    <a class="btn btn-primary" href="/change-password">パスワードを変更</a>
+  </p>
+  {% endif %}
+  {% call vuln_hint("IDOR-1 PoC") %}所有者チェックが無いため、URL の口座番号(ID)を変更するだけで
+    他人の口座情報・メモを閲覧できます:
+    <a href="/profile/1">/profile/1</a>,
+    <a href="/profile/2">/profile/2</a>,
+    <a href="/profile/3">/profile/3</a> …{% endcall %}
+</div>
+{% endblock %}

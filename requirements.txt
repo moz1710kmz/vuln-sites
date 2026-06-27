@@ -1,0 +1,6 @@
+flask==3.0.3
+reportlab>=4.0
+boto3>=1.34
+cryptography>=42.0  # 自己署名証明書の生成（HTTPS 化 / certmaker.py）
+ariadne>=0.20       # VulnGraph の GraphQL（本物の graphql-core エンジン。脆弱性は resolver/設定に注入）
+flask-sock>=0.7     # VulnBank サポートチャットの生 WebSocket（simple-websocket を同梱。脆弱性は WS ハンドラ/設定に注入）

@@ -1,0 +1,46 @@
+{% extends "panel/panel_base.html" %}
+{% block title %}攻撃ログ — Control Panel{% endblock %}
+{% block nav_active %}logs{% endblock %}
+{% block body %}
+<div class="wrap">
+  <div class="card">
+    <h1>攻撃ログ</h1>
+    <p class="muted" style="margin-bottom:.8rem;">
+      検証アプリへの直近 {{ rows|length }} 件のリクエスト。
+      <code>matched</code> は攻撃シグネチャに一致した脆弱性ID。
+      {% if not running %}<br><span style="color:#fca5a5;">※ 検証アプリは現在停止中です（過去ログを表示）。</span>{% endif %}
+    </p>
+    <p style="margin-bottom:1rem;">
+      表示:
+      <a class="btn {{ 'btn-blue' if not attacks_only else '' }}" href="/logs">すべて</a>
+      <a class="btn {{ 'btn-blue' if attacks_only else '' }}" href="/logs?attacks=1">攻撃のみ</a>
+      &nbsp;|&nbsp;
+      <a class="btn btn-green" href="/logs/download{{ '?attacks=1' if attacks_only else '' }}">⬇ ログファイルをダウンロード</a>
+    </p>
+
+    {% if rows %}
+    <div style="overflow-x:auto;">
+    <table style="width:100%; border-collapse:collapse; font-size:.82rem;">
+      <tr style="text-align:left; border-bottom:1px solid #334155;">
+        <th style="padding:.4rem;">時刻</th><th>サイト</th><th>M</th><th>パス</th>
+        <th>パラメータ</th><th>状態</th><th>matched</th>
+      </tr>
+      {% for r in rows %}
+      <tr style="border-bottom:1px solid #1e293b; {% if r.matched %}background:#3b1d1d;{% endif %}">
+        <td style="padding:.4rem; white-space:nowrap; color:#94a3b8;">{{ r.ts }}</td>
+        <td><code>{{ r.site or '-' }}</code></td>
+        <td><code>{{ r.method }}</code></td>
+        <td style="word-break:break-all;">{{ r.path }}</td>
+        <td style="word-break:break-all; color:#cbd5e1;">{{ (r.query or '') ~ (' ' if r.query and r.form) ~ (r.form or '') }}</td>
+        <td>{{ r.status }}</td>
+        <td>{% if r.matched %}<span class="pill pill-on">{{ r.matched }}</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    </div>
+    {% else %}
+    <p class="muted">ログはまだありません。検証アプリを起動してスキャナを当ててください。</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

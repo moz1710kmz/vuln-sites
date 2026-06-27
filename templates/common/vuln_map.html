@@ -1,0 +1,67 @@
+{% extends "common/base.html" %}
+{% block title %}脆弱性マップ — {{ site_label }}{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>脆弱性マップ{% if hard_mode %} <span class="badge" style="background:#6a1b9a;">セキュリティ機能: {{ features|join(', ') }}</span>{% endif %}</h1>
+  <p style="color:#555; margin-bottom:1rem;">
+    スキャナー評価用の全脆弱性一覧。合計 <strong>{{ vulns|length }}</strong> 件。
+  </p>
+
+  {% if f_waf %}
+  <div class="alert alert-info" style="font-size:.85rem;">
+    <strong>WAF有効:</strong> 各脆弱性の手前に WAF風フィルタがあります。
+    下表の「ペイロード例」列は <strong>WAFを回避できる文字列</strong>を表示しています。<br>
+    WAFブロック対象（素朴なパターン）:
+    {% for p in waf_blocklist %}<code>{{ p }}</code>{% if not loop.last %} / {% endif %}{% endfor %}
+  </div>
+  {% endif %}
+
+  {% set type_class = {
+    'SQL Injection': 'sqli',
+    'Reflected XSS': 'xss',
+    'Stored XSS': 'xss',
+    'DOM-based XSS': 'xss',
+    'CSRF': 'csrf',
+    'IDOR': 'idor',
+    'Path Traversal': 'path',
+    'Command Injection': 'cmd',
+    'Broken Access Control': 'authz',
+    'Business Logic': 'biz',
+    'Auth Weakness': 'auth',
+    'Session Fixation': 'auth',
+  } %}
+
+  <div style="overflow-x:auto;">
+  <table class="vuln-table">
+    <tr><th>ID</th><th>種類</th><th>メソッド</th><th>エンドポイント</th><th>パラメータ</th><th>{% if f_waf %}WAF回避ペイロード例{% else %}検証用ペイロード例{% endif %}</th><th>備考</th></tr>
+    {% for v in vulns %}
+    <tr>
+      <td><code>{{ v.id }}</code></td>
+      <td><span class="tag tag-{{ type_class.get(v.type, 'auth') }}">{{ v.type }}</span></td>
+      <td><code>{{ v.method }}</code></td>
+      <td><a href="{{ v.endpoint.split('<')[0] }}">{{ v.endpoint }}</a></td>
+      <td><code>{{ v.param }}</code></td>
+      <td class="col-payload">
+        {% if f_waf and bypass_map.get(v.id) %}
+          <span class="tag tag-path" style="font-size:.7rem;">WAF回避</span>
+          <code>{{ bypass_map.get(v.id) }}</code>
+        {% else %}
+          <code>{{ v.payload }}</code>
+        {% endif %}
+      </td>
+      <td class="col-notes">{{ v.notes }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .vuln-table { table-layout: fixed; width: 100%; min-width: 900px; }
+  .vuln-table th, .vuln-table td { vertical-align: top; word-break: break-word; }
+  .vuln-table code { white-space: normal; word-break: break-all; }
+  .vuln-table .col-payload { font-size: .8rem; width: 30%; }
+  .vuln-table .col-notes { font-size: .85rem; color: #555; width: 22%; }
+</style>
+{% endblock %}

@@ -1,0 +1,123 @@
+services:
+  # コントロールパネル（管理画面）＋検証サイト一式を 1 コンテナに同梱。
+  # VulnBank/VulnEC/VulnBoard/VulnGraph を子プロセスとして 8081-8084 で
+  # 起動/停止/初期化する。パネル自身は 8080。
+  vuln-suite:
+    # Dockerfile は multi-stage（base=ランタイム / test=pytest 入り）。
+    # 既定ターゲットは最後のステージ（test）になってしまうため、ランタイムの base を明示する。
+    build:
+      context: .
+      target: base
+    container_name: vuln-control-panel
+    ports:
+      # 既定は 127.0.0.1（ローカル限定・安全側）。
+      # EC2 等で外部アクセスさせる場合は BIND_ADDR=0.0.0.0:
+      #   BIND_ADDR=0.0.0.0 docker compose up -d
+      # ※外部からの不要なアクセスは Security Group 側で制御する前提。
+      # 左辺がホスト公開ポート、右辺がコンテナ内の固定待受ポート。
+      - "${BIND_ADDR:-127.0.0.1}:${PANEL_PORT:-8080}:8080"               # コントロールパネル
+      - "${BIND_ADDR:-127.0.0.1}:${BANK_APP_PORT:-8081}:8081"            # VulnBank（パネルが起動）
+      - "${BIND_ADDR:-127.0.0.1}:${EC_APP_PORT:-8082}:8082"              # VulnEC（パネルが起動）
+      - "${BIND_ADDR:-127.0.0.1}:${BOARD_APP_PORT:-8083}:8083"           # VulnBoard（パネルが起動・JWT/タスク管理）
+      - "${BIND_ADDR:-127.0.0.1}:${GRAPHQL_APP_PORT:-8084}:8084"         # VulnGraph（パネルが起動・GraphQL）
+    environment:
+      - PANEL_HOST=0.0.0.0
+      - PANEL_PORT=8080
+      - PANEL_PUBLIC_PORT=${PANEL_PORT:-8080}
+      - APP_BIND=0.0.0.0
+      - BANK_APP_PORT=8081
+      - EC_APP_PORT=8082
+      - BOARD_APP_PORT=8083
+      - GRAPHQL_APP_PORT=8084
+      - BANK_APP_PUBLIC_PORT=${BANK_APP_PORT:-8081}
+      - EC_APP_PUBLIC_PORT=${EC_APP_PORT:-8082}
+      - BOARD_APP_PUBLIC_PORT=${BOARD_APP_PORT:-8083}
+      - GRAPHQL_APP_PUBLIC_PORT=${GRAPHQL_APP_PORT:-8084}
+      # 管理画面のログイン情報（変更推奨）
+      - PANEL_USER=${PANEL_USER:-admin}
+      - PANEL_PASS=${PANEL_PASS:-panel123}
+      # ブラインド評価（脆弱性マップ/ヒント非表示）はパネル GUI で切り替える。
+      # env から渡してもサイト起動時に上書きされるため compose では指定しない。
+      # 既定 HTTP。HTTPS（自己署名・コンテナ内で起動時に生成）にするなら VULN_TLS=1。
+      # → パネル/各サイトは http://127.0.0.1:8080-8084 でアクセス。
+      - VULN_TLS=${VULN_TLS:-0}
+      # 接続元 IP 制限はアプリ内では行わない。外部公開時は Security Group /
+      # firewall などホスト側で制限する。
+    volumes:
+      # 自己署名証明書をホスト ./certs に出して zipapi コンテナと共有する
+      # （住所検索 API も同じ1枚で HTTPS 終端するため）。
+      - ./certs:/app/certs
+    restart: unless-stopped
+    # メモリ単調増加（debug デバッガのトレースバック保持など）時の被害をコンテナ単位で
+    # 打ち切る保険。必要に応じて調整する。
+    mem_limit: 1g
+    # パネル(8080)の死亡/コンテナ OOM を検知して自動再起動させる保険。
+    # /login は無認証で 200 を返す。既定 HTTP（http→https の順で試すので VULN_TLS=1 でも可）。
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8080/login || curl -fsk https://localhost:8080/login"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # VulnEC の購入フロー（住所入力）で使う「外部住所検索 API」役の独立コンテナ。
+  # ブラウザの「住所検索」ボタンから *直接* fetch される外部サービスを模倣する（別オリジン）。
+  # 郵便番号 -> 住所 を返すだけ。脆弱性ではなくリアルな UX のための補助サービス。
+  # 既定 HTTP。VULN_TLS=1 のときは本体サイトと同じ自己署名証明書（./certs を共有マウント）で TLS 終端する。
+  zipapi:
+    build: ./zipapi
+    container_name: vuln-zipapi
+    depends_on:
+      - vuln-suite          # 本体が共有 certs/ に証明書を生成するのを待てるよう先に起動
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${ZIP_API_PORT:-8090}:8090"   # 外部住所検索 API
+    environment:
+      - VULN_TLS=${VULN_TLS:-0}          # 本体と同じ HTTP/HTTPS モードに合わせる
+      - ZIP_API_CERT=/certs/vuln.crt
+      - ZIP_API_KEY=/certs/vuln.key
+    volumes:
+      - ./certs:/certs:ro                # 本体が生成した自己署名証明書を読み取り共有
+    restart: unless-stopped
+    mem_limit: 256m   # 日本郵便 KEN_ALL（約12万件）を読み込むため少し多めに
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('localhost',8090),3).close()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # テスト実行専用サービス（Docker 上でテストを完結させる）。
+  #   docker compose run --rm tests                         # 全件（既定 pytest -q）
+  #   docker compose run --rm tests pytest tests/test_vulns.py -q
+  #   docker compose run --rm tests python smoke.py https://vuln-suite:8081 --site bank
+  # profiles を付けているので `docker compose up` では起動しない（run で明示起動）。
+  tests:
+    build:
+      context: .
+      target: test           # pytest 入りステージ
+    container_name: vuln-tests
+    environment:
+      - VULN_TLS=0           # テストは平文で十分
+      - PYTHONDONTWRITEBYTECODE=1        # __pycache__ をマウント先(ホスト)に書かせない（Docker 完結）
+      - PYTEST_ADDOPTS=-p no:cacheprovider   # .pytest_cache もホストに残さない
+    volumes:
+      - .:/app               # ソースをマウント→コード変更で再ビルド不要（依存は image 側 site-packages）
+    profiles: ["test"]        # `docker compose up` では起動させない
+    # 既定 command はイメージの CMD（pytest -q）。run の引数で個別実行も可。
+
+  # e2e（Playwright・ヘッドレス Chromium）実行専用サービス。重いので opt-in。
+  #   docker compose run --rm e2e            # = pytest -m e2e（VulnBoard SPA の実 DOM テスト 6 件）
+  # ブラウザ一式はイメージ（e2e ステージ）にビルド時に焼いてあるので毎回の再取得は不要。
+  e2e:
+    build:
+      context: .
+      target: e2e            # playwright + Chromium 入りステージ
+    container_name: vuln-e2e
+    environment:
+      - VULN_TLS=0
+      - PYTHONDONTWRITEBYTECODE=1        # __pycache__ をホストに書かせない（Docker 完結）
+      - PYTEST_ADDOPTS=-p no:cacheprovider   # .pytest_cache もホストに残さない
+    volumes:
+      - .:/app
+    profiles: ["test"]        # `docker compose up` では起動させない
+    # 既定 command はイメージの CMD（pytest -m e2e）。

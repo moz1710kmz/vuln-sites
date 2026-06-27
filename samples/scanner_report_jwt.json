@@ -1,0 +1,11 @@
+[
+  {"type": "JWT 'alg:none' accepted - signature not required", "url": "http://localhost:8083/api/me", "param": "Authorization: Bearer", "cwe": 347, "severity": "High"},
+  {"type": "JWT signature not verified on endpoint", "url": "http://localhost:8083/api/tasks", "param": "Authorization: Bearer", "cwe": 347, "severity": "High"},
+  {"type": "JWT weak HMAC secret (brute-forceable)", "url": "http://localhost:8083/api/me", "param": "Authorization: Bearer", "cwe": 326, "severity": "High"},
+  {"type": "Sensitive data exposed in JWT payload", "url": "http://localhost:8083/api/login", "param": "", "cwe": 200, "severity": "Medium"},
+  {"type": "JWT algorithm confusion (RS256 to HS256 with public key)", "url": "http://localhost:8083/api/admin", "param": "Authorization: Bearer", "cwe": 347, "severity": "High"},
+  {"type": "DOM-based Cross Site Scripting", "url": "http://localhost:8083/", "param": "msg", "cwe": 79, "severity": "High"},
+  {"type": "Mass Assignment - privilege escalation via registration", "url": "http://localhost:8083/api/register", "param": "role", "cwe": 915, "severity": "High"},
+  {"type": "Username enumeration on registration", "url": "http://localhost:8083/api/register", "param": "username", "cwe": 204, "severity": "Medium"},
+  {"type": "Missing rate limiting on /api/login", "url": "http://localhost:8083/api/login", "param": "", "cwe": 307, "severity": "Low"}
+]

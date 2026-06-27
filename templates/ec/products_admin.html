@@ -1,0 +1,35 @@
+{% extends "common/base.html" %}
+{% from "common/macros.html" import vuln_hint with context %}
+{% block title %}商品管理 — {{ site_label }}{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>商品管理</h1>
+  {% call vuln_hint("AUTHZ-2 PoC") %}本来は<strong>店舗担当者・管理者</strong>のみが操作できる画面ですが、
+    サーバ側はロールを検証しません。利用者でも <code>/admin/products/new</code> などを直接叩けば
+    商品を改変できます（BFLA）。{% endcall %}
+
+  <p style="margin-bottom:1rem;">
+    <a class="btn btn-primary btn-sm" href="/admin/products/new">＋ 新規商品</a>
+    <a class="btn btn-primary btn-sm" href="/admin/image-import" style="margin-left:.4rem;">🖼 画像をURLから取り込み</a>
+  </p>
+
+  <table>
+    <tr><th>ID</th><th>商品名</th><th>価格</th><th>説明</th><th></th></tr>
+    {% for p in products %}
+    <tr>
+      <td>{{ p.id }}</td>
+      <td>{{ p.name }}</td>
+      <td>¥{{ p.price|yen }}</td>
+      <td>{{ p.description }}</td>
+      <td style="white-space:nowrap;">
+        <a class="btn btn-primary btn-sm" href="/admin/products/{{ p.id }}/edit">編集</a>
+        <form method="POST" action="/admin/products/{{ p.id }}/delete" style="display:inline;">
+          {{ csrf_field() }}{{ honeypot_field() }}
+          <button class="btn btn-danger btn-sm" onclick="return confirm('削除しますか?')">削除</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

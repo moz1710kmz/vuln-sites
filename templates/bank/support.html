@@ -1,0 +1,75 @@
+{% from "common/macros.html" import vuln_hint with context %}
+{% set support_room = request.args.get("room") or support_room_for(user) %}
+<aside class="support-widget is-collapsed" id="support-widget" aria-label="サポートチャット">
+  <div class="support-widget__header">
+    <div>
+      <div class="support-widget__title">サポートチャット</div>
+      <div class="support-widget__room">受付ルーム: {{ support_room }}</div>
+    </div>
+    <button class="support-widget__toggle" id="support-widget-toggle" type="button" aria-label="チャットを開く">+</button>
+  </div>
+  <div class="support-widget__body">
+    <div class="support-widget__status" id="support-widget-status">接続中...</div>
+    <div class="support-widget__log" id="support-widget-log"></div>
+    <form class="support-widget__form" id="support-widget-form" autocomplete="off">
+      <input type="text" id="support-widget-body" placeholder="メッセージを入力..." required>
+      <button class="btn btn-primary btn-sm" type="submit">送信</button>
+    </form>
+    {% call vuln_hint("WS-1 / WS-2 / WS-3 / WS-4 PoC") %}
+      DevTools などの WebSocket クライアントから
+      <code>new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/support/ws?room=R-1003')</code>
+      のように room を変えて接続すると他人の履歴を読めます。本文は HTML として描画され、
+      WS フレームの <code>sender</code> も検証されません。
+    {% endcall %}
+  </div>
+</aside>
+
+<script>
+(() => {
+  const widget = document.getElementById('support-widget');
+  if (!widget || !window.WebSocket) return;
+
+  const ROOM = {{ support_room | tojson }};
+  const USERNAME = {{ user.username | tojson }};
+  const proto = (location.protocol === 'https:') ? 'wss://' : 'ws://';
+  const WS_URL = proto + location.host + '/support/ws?room=' + encodeURIComponent(ROOM);
+
+  const logEl = document.getElementById('support-widget-log');
+  const statusEl = document.getElementById('support-widget-status');
+  const formEl = document.getElementById('support-widget-form');
+  const inputEl = document.getElementById('support-widget-body');
+  const toggleEl = document.getElementById('support-widget-toggle');
+
+  function append(m) {
+    const cls = (m.sender !== USERNAME && m.sender !== 'guest') ? 'msg staff' : 'msg';
+    // [VULN WS-2] サーバから受信した本文を innerHTML 相当でそのまま描画する（サニタイズ無し）。
+    logEl.insertAdjacentHTML('beforeend',
+      '<div class="' + cls + '"><b>' + m.sender + '</b>: ' + m.body + '</div>');
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  let socket;
+  function connect() {
+    socket = new WebSocket(WS_URL);
+    socket.onopen = () => { statusEl.textContent = 'オペレーターに接続しました'; };
+    socket.onmessage = (ev) => { try { append(JSON.parse(ev.data)); } catch (e) {} };
+    socket.onclose = () => { statusEl.textContent = '切断されました'; };
+    socket.onerror = () => { statusEl.textContent = '接続エラー（時間をおいて再読み込みしてください）'; };
+  }
+  connect();
+
+  toggleEl.addEventListener('click', () => {
+    const collapsed = widget.classList.toggle('is-collapsed');
+    toggleEl.textContent = collapsed ? '+' : '-';
+    toggleEl.setAttribute('aria-label', collapsed ? 'チャットを開く' : 'チャットを最小化');
+  });
+
+  formEl.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const body = inputEl.value;
+    if (!body || !socket || socket.readyState !== WebSocket.OPEN) return;
+    socket.send(JSON.stringify({ body: body }));
+    inputEl.value = '';
+  });
+})();
+</script>

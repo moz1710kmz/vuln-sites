@@ -1,0 +1,13 @@
+{% extends "common/base.html" %}
+{% from "common/macros.html" import vuln_hint with context %}
+{% block title %}Request Blocked — {{ site_label }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:520px; margin:2rem auto; text-align:center;">
+  <h1 style="color:#c62828;">🛡️ リクエストがブロックされました</h1>
+  <p style="color:#555; margin-top:.5rem;">
+    Web Application Firewall が不正な可能性のある入力を検知しました。(403)
+  </p>
+  {% call vuln_hint("WAF回避") %}このWAFは素朴なブラックリスト方式で、エンコードや代替構文で
+    回避可能です。回避ペイロードは <a href="/vuln-map">脆弱性マップ</a> を参照してください。{% endcall %}
+</div>
+{% endblock %}

@@ -1,0 +1,150 @@
+{% extends "panel/panel_base.html" %}
+{% block title %}スキャナ採点 — Control Panel{% endblock %}
+{% block nav_active %}scanner{% endblock %}
+{% block body %}
+<div class="wrap">
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+  {% if msgs %}
+  <div class="toast-stack">
+    {% for category, message in msgs %}
+    <div class="alert alert-{{ 'ok' if category == 'ok' else 'err' }}">{{ message }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endwith %}
+
+  <div class="card">
+    <h1>スキャナ検出精度の採点</h1>
+    <p class="muted" style="margin-bottom:1rem;">
+      被験スキャナの<strong>検出結果</strong>を取り込み、正解（vuln-map）と突き合わせて
+      <strong>Precision・Recall（検出率）・F1</strong> を算出します。
+      到達カバレッジ（<a class="link" href="/score">採点</a>）が「攻撃が届いたか」を測るのに対し、
+      こちらは「スキャナが正しく当てられたか」を測ります。
+    </p>
+
+    <form method="POST" action="/scanner" enctype="multipart/form-data">
+      <div class="grid">
+        <div>
+          <label>採点対象サイト</label>
+          <select name="site" style="width:100%; padding:.6rem .75rem; border:1px solid #475569; border-radius:6px; background:#0f172a; color:#e2e8f0;">
+            <option value="all"{% if not scan or scan.site == 'all' %} selected{% endif %}>全サイト（VulnBank + VulnEC + VulnBoard + VulnGraph・正解41件）</option>
+            <option value="bank"{% if scan and scan.site == 'bank' %} selected{% endif %}>VulnBank（正解9件）</option>
+            <option value="ec"{% if scan and scan.site == 'ec' %} selected{% endif %}>VulnEC（正解16件）</option>
+            <option value="board"{% if scan and scan.site == 'board' %} selected{% endif %}>VulnBoard（JWT/登録・正解10件）</option>
+            <option value="graphql"{% if scan and scan.site == 'graphql' %} selected{% endif %}>VulnGraph（GraphQL・正解7件）</option>
+          </select>
+        </div>
+        <div>
+          <label>取り込み形式</label>
+          <select name="fmt" style="width:100%; padding:.6rem .75rem; border:1px solid #475569; border-radius:6px; background:#0f172a; color:#e2e8f0;">
+            <option value="auto"{% if not scan or scan.fmt == 'auto' %} selected{% endif %}>auto（自動判定）</option>
+            <option value="zap"{% if scan and scan.fmt == 'zap' %} selected{% endif %}>OWASP ZAP JSON</option>
+            <option value="generic"{% if scan and scan.fmt == 'generic' %} selected{% endif %}>汎用 JSON</option>
+            <option value="csv"{% if scan and scan.fmt == 'csv' %} selected{% endif %}>CSV</option>
+          </select>
+        </div>
+      </div>
+
+      <label style="margin-top:.5rem;">レポートファイル（JSON / CSV）</label>
+      <input type="file" name="report" accept=".json,.csv,.txt"
+             style="width:100%; padding:.5rem; border:1px solid #475569; border-radius:6px; background:#0f172a; color:#e2e8f0; margin-bottom:1rem;">
+
+      <label>または、出力を貼り付け</label>
+      <textarea name="report_text" rows="6" placeholder='[{"type":"SQL Injection","url":"/login","param":"username"}, ...]'
+                style="width:100%; padding:.6rem .75rem; border:1px solid #475569; border-radius:6px; background:#0f172a; color:#e2e8f0; font-family:monospace; font-size:.85rem; margin-bottom:1rem;"></textarea>
+
+      <button class="btn btn-green">採点する</button>
+    </form>
+    <p class="muted" style="margin-top:.8rem;">
+      対応形式: OWASP ZAP の JSON レポート、<code>[{type/category, url/path, param, cwe}]</code> 形式の汎用 JSON、
+      同等の列を持つ CSV。種別は名称または CWE 番号から判定します。
+    </p>
+
+    {% if samples %}
+    <hr style="border:none; border-top:1px solid #334155; margin:1.2rem 0;">
+    <h2>サンプルで試す</h2>
+    <p class="muted" style="margin-bottom:.6rem;">
+      被験スキャナがなくても、同梱の見本レポート（<code>samples/</code>）でワンクリック採点できます。
+    </p>
+    <div style="display:flex; gap:.6rem; flex-wrap:wrap;">
+      {% for key, s in samples.items() %}
+      <a class="btn btn-blue" href="/scanner/sample/{{ key }}">🧪 {{ s.label }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  {% if scan %}
+  {% set r = scan.result %}
+  <div class="card">
+    <h2>採点結果</h2>
+    <p class="muted" style="margin-bottom:1rem;">
+      入力: <code>{{ scan.filename }}</code> ／ 形式: <code>{{ scan.fmt }}</code> ／
+      対象: <code>{{ scan.site }}</code> ／ 取り込み {{ r.total_findings }} 件 ／ {{ scan.ts }}
+    </p>
+    <p style="margin-bottom:1rem;">
+      <a class="btn btn-green" href="/scanner/download">⬇ レポートを PDF でダウンロード</a>
+    </p>
+
+    <div class="grid" style="grid-template-columns:repeat(3,1fr); margin-bottom:1rem;">
+      <div style="text-align:center; background:#0f172a; border:1px solid #334155; border-radius:8px; padding:.8rem;">
+        <div style="font-size:1.8rem; font-weight:700; color:#38bdf8;">{{ r.precision }}%</div>
+        <div class="muted">Precision（指摘の正確さ）</div>
+      </div>
+      <div style="text-align:center; background:#0f172a; border:1px solid #334155; border-radius:8px; padding:.8rem;">
+        <div style="font-size:1.8rem; font-weight:700; color:#16a34a;">{{ r.recall }}%</div>
+        <div class="muted">Recall（検出率）</div>
+      </div>
+      <div style="text-align:center; background:#0f172a; border:1px solid #334155; border-radius:8px; padding:.8rem;">
+        <div style="font-size:1.8rem; font-weight:700; color:#fbbf24;">{{ r.f1 }}%</div>
+        <div class="muted">F1スコア</div>
+      </div>
+    </div>
+    <p style="margin-bottom:1.2rem;">
+      <span class="pill pill-on">検出 {{ r.tp }}</span>
+      <span class="pill" style="background:#7f1d1d; color:#fca5a5;">見逃し {{ r.fn }}</span>
+      <span class="pill" style="background:#7c2d12; color:#fdba74;">誤検知 {{ r.fp }}</span>
+      <span class="pill pill-off">重複 {{ r.duplicates }}</span>
+      <span class="muted">（正解 {{ r.total_gt }} 件中）</span>
+    </p>
+
+    <h2>正解ごとの検出状況</h2>
+    <table style="width:100%; border-collapse:collapse; font-size:.85rem; margin-bottom:1.5rem;">
+      <tr style="text-align:left; border-bottom:1px solid #334155;">
+        <th style="padding:.4rem;">ID</th><th>種別</th><th>エンドポイント</th><th>結果</th>
+      </tr>
+      {% for row in r.rows %}
+      <tr style="border-bottom:1px solid #1e293b; {% if not row.detected %}background:#3b1d1d;{% endif %}">
+        <td style="padding:.4rem;"><code>{{ row.id }}</code></td>
+        <td>{{ row.type }}</td>
+        <td style="word-break:break-all; color:#cbd5e1;">{{ row.endpoint }}</td>
+        <td>{% if row.detected %}<span class="pill pill-on">✓ 検出</span>{% else %}<span class="pill" style="background:#7f1d1d; color:#fca5a5;">✗ 見逃し</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+
+    <h2>誤検知（どの正解にも対応しない指摘）</h2>
+    {% if r.false_positives %}
+    <table style="width:100%; border-collapse:collapse; font-size:.85rem;">
+      <tr style="text-align:left; border-bottom:1px solid #334155;">
+        <th style="padding:.4rem;">種別</th><th>パス</th><th>パラメータ</th>
+      </tr>
+      {% for f in r.false_positives %}
+      <tr style="border-bottom:1px solid #1e293b;">
+        <td style="padding:.4rem;">{{ f.category }}</td>
+        <td style="word-break:break-all; color:#cbd5e1;">{{ f.path }}</td>
+        <td>{{ f.param }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <p class="muted">なし（すべての指摘が正解に対応しました）。</p>
+    {% endif %}
+    <p class="muted" style="margin-top:1rem;">
+      ※ 同じ正解を指す重複指摘は減点しません（重複としてカウント）。
+      DOM XSS や CSRF・クーポン競合・平文保存などは DAST では当てにくく、見逃しに出やすい項目です。
+    </p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

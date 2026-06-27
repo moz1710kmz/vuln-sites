@@ -1,0 +1,13 @@
+venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+# 実行時に生成される状態（ホストのものを焼き込まず、コンテナ内で生成/初期化させる）
+vulnbank.db
+certs/
+.git/
+.dockerignore
+Dockerfile
+compose.yaml
